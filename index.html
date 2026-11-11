@@ -65,55 +65,10 @@
     }
     .hero-copy { text-align: left; }
     .mascot-wrap { position: relative; }
-    .welcome {
-      background: #161b28;
-      border: 1px solid #3b82f6;
+    .welcome-shot {
+      width: 100%; height: auto; display: block;
       border-radius: 10px;
-      overflow: hidden;
       box-shadow: 0 24px 60px rgba(29, 78, 216, .18);
-      color: #d5deee;
-      font-family: var(--mono);
-    }
-    .welcome-top {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 12px; color: #3b82f6; font-size: 12px;
-      border-bottom: 1px solid #243049;
-    }
-    .welcome-grid {
-      display: grid; grid-template-columns: 1.1fr .9fr; min-height: 220px;
-    }
-    .welcome-left {
-      padding: 18px 16px 20px; text-align: center;
-      border-right: 1px solid #243049;
-    }
-    .welcome-left .hi { font-size: 13px; color: #c5d0e6; margin-bottom: 10px; }
-    .welcome-left .meta { font-size: 11px; color: #8b9bb8; margin-top: 12px; }
-    .clawd-tui {
-      margin: 10px auto 2px;
-      width: fit-content;
-      font-family: "Cascadia Mono", "Cascadia Code", "JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace;
-      font-size: 20px;
-      line-height: 1.05;
-      letter-spacing: 0;
-      white-space: pre;
-      color: #3b82f6;
-      text-align: left;
-      animation: bob 5.4s ease-in-out infinite;
-      font-variant-ligatures: none;
-    }
-    .clawd-tui .eye { color: #3b82f6; background: #000; }
-    .clawd {
-      width: 144px; height: auto; margin: 6px auto;
-      image-rendering: pixelated;
-      animation: bob 5.4s ease-in-out infinite;
-    }
-    .welcome-right { padding: 16px 16px 18px; font-size: 12px; line-height: 1.55; }
-    .welcome-right strong { color: #67e8c8; font-weight: 650; display: block; margin-bottom: 6px; }
-    .welcome-right p { margin: 0 0 10px; color: #9aabc4; }
-    .welcome-right hr { border: 0; border-top: 1px solid #2a3650; margin: 8px 0 10px; }
-    @keyframes bob {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-6px); }
     }
     .eyebrow {
       display: inline-flex; align-items: center; gap: 8px;
@@ -168,7 +123,7 @@
       margin-left: auto; background: #1c2a46; border: 1px solid #2b3d5e;
       border-radius: 16px 16px 6px 16px; padding: 10px 14px; width: fit-content; color: #d5e3ff;
     }
-    .face { width: 22px; height: 22px; image-rendering: pixelated; }
+    .face { width: 28px; height: 18px; object-fit: contain; image-rendering: pixelated; }
     .reply { margin-top: 18px; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
     .reply p { margin: 0 0 8px; color: #dce6f8; }
     .reply .dim { color: #8aa0c2; font-size: 13px; }
@@ -236,8 +191,7 @@
       .cta { justify-content: center; }
       .lede { margin-left: auto; margin-right: auto; }
       h1 { max-width: none; }
-      .welcome-grid { grid-template-columns: 1fr; }
-      .welcome-left { border-right: 0; border-bottom: 1px solid #243049; }
+      .welcome-shot { width: 100%; }
     }
     @media (prefers-reduced-motion: reduce) {
       .spark, .caret, .mascot { animation: none; }
@@ -276,25 +230,7 @@
         </div>
       </div>
       <div class="mascot-wrap">
-        <div class="welcome" aria-label="蓝色 Claude Code 终端欢迎屏">
-          <div class="welcome-top">✶ Claude Code</div>
-          <div class="welcome-grid">
-            <div class="welcome-left">
-              <div class="hi">Welcome back</div>
-              <pre class="clawd-tui" aria-label="蓝色 Clawd，Claude Code 原版终端形象"> ▐<span class="eye">▛███▛█</span>
-▝▜<span class="eye">█████</span>█▀
-  ▝▝ ▝▝  </pre>
-              <div class="meta">Opus 4.6 · Claude Max</div>
-            </div>
-            <div class="welcome-right">
-              <strong>Tips for getting started</strong>
-              <p>Run /init to create a CLAUDE.md file with instructions for Claude</p>
-              <hr />
-              <strong>Recent activity</strong>
-              <p>/resume for more</p>
-            </div>
-          </div>
-        </div>
+        <img class="welcome-shot" src="welcome-blue.png" alt="蓝色 Claude Code 原版终端欢迎屏，Clawd 体色 #3B82F6" />
       </div>
     </div>
 
@@ -308,7 +244,7 @@
         <div class="tui-body">
           <div class="you">把这台 Claude Code 调成蓝的，然后继续干活。</div>
           <div class="reply">
-            <img class="face" src="clawd-blue.svg" alt="" />
+            <img class="face" src="clawd-blue.png" alt="" />
             <div>
               <p>主题已落到 <b style="color:#93c5fd">rgb(59,130,246)</b>。启动器用 <code style="color:#bfdbfe">~\.local\bin\claude.cmd</code>。</p>
               <p class="dim">不是换皮客户端。补丁打在官方 Claude Code 上。<span class="caret"></span></p>
@@ -357,7 +293,7 @@ launcher  ~\.local\bin\claude.cmd</span></pre>
     </section>
 
     <div class="how">
-      <img src="bypass.png" alt="Claude Code 原版终端欢迎屏" />
+      <img src="welcome-blue.png" alt="蓝色 Claude Code 原版终端欢迎屏" />
       <div>
         <h2>还是那个 Clawd，换成蓝的。</h2>
         <p>欢迎屏上的方块形象就是官方终端 Clawd。ClawGod Blue 只改 <code>clawd_body</code> 为 <code>rgb(59,130,246)</code>，不另造卡通。克隆仓库，跑安装器，用 <code>claude.cmd</code> 打开。</p>
