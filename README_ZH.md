@@ -1,0 +1,277 @@
+# ClawGod Blue
+
+> Local security workspace edition. Start with [BLUE-README.md](BLUE-README.md) for this edition’s installation, commands and update behavior.
+
+[English](README.md) | [中文](README_ZH.md) | [日本語](README_JP.md)
+
+[![Latest](https://img.shields.io/github/v/release/0chencc/clawgod?style=flat&label=Latest)](https://github.com/0Chencc/clawgod/releases/latest)
+[![Released](https://img.shields.io/github/release-date/0chencc/clawgod?style=flat&label=Released)](https://github.com/0Chencc/clawgod/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/0chencc/clawgod/total?style=flat&label=Downloads)](https://github.com/0Chencc/clawgod/releases)
+[![Compat](https://img.shields.io/github/actions/workflow/status/0chencc/clawgod/compat-daily.yml?branch=main&style=flat&label=Compat)](https://github.com/0Chencc/clawgod/actions/workflows/compat-daily.yml)
+[![Claude tested](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/0Chencc/clawgod/badges/claude-version.json&style=flat)](https://github.com/0Chencc/clawgod/actions/workflows/compat-daily.yml)
+
+> [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 上帝模式。
+
+**这不是第三方 Claude Code 客户端。** ClawGod 是作用在官方 Claude Code 之上的运行时补丁。兼容性取决于上游打包结构；通过 `claude update` 下载版本并重新应用补丁。
+
+**默认启用隐私保护：** 中和日期提示词中已识别的地区/代理隐写，并从 v2.3.0 起阻断 `x-claude-code-wiggly-dove` 自动采集 Git origin 和环境信息。保护范围和配置见[隐私保护](#隐私保护)。
+
+## 前置依赖
+
+安装前准备 Node.js 和 ripgrep。ClawGod 会从 npm 下载官方 Claude Code 平台包，Bun 缺失时会尝试自动安装：
+
+| 工具 | 用途 | 安装 |
+|------|------|------|
+| **Claude Code**（安装器下载） | 用于提取和打补丁的官方 Bun standalone 二进制 | ClawGod 下载对应的 `@anthropic-ai/claude-code-<platform>` npm 包 |
+| **ripgrep** | Claude Code 内置 Grep tool 必需 | `brew install ripgrep` / `apt install ripgrep` / `winget install BurntSushi.ripgrep.MSVC` |
+| **Node.js >= 18** | patcher 使用 | [nodejs.org](https://nodejs.org) |
+| **Bun** | 运行 patched cli.js 的 runtime，缺失时自动安装 | [bun.sh](https://bun.sh)、`npm install -g bun`、`scoop install bun` 或 `choco install bun` |
+
+## 安装
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://github.com/0Chencc/clawgod/releases/latest/download/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/0Chencc/clawgod/releases/latest/download/install.ps1 | iex
+```
+
+蓝色 Logo = 已 Patch。橙色 Logo = 原版。
+
+![ClawGod 效果展示](bypass.png)
+
+## 功能一览
+
+### 功能解锁
+
+| 补丁 | 效果 |
+|------|------|
+| **内部用户模式** | 24+ 隐藏命令（`/share`、`/teleport`、`/issue`、`/bughunter`...），调试日志，API 请求记录 |
+| **GrowthBook 覆盖** | 通过配置文件覆盖任意 Feature Flag |
+| **Agent Teams** | 多智能体协作，无需额外参数 |
+| **Computer Use** | 无需 Max/Pro 订阅即可使用屏幕控制（macOS） |
+| **Auto-mode** | 解锁第三方 API 用户的 auto-mode（移除 firstParty 限制） |
+| **Classifier 调优** | Auto-mode 分类器可调：超时 / 模型 / 重试次数（`CLAWGOD_CLASSIFIER_TIMEOUT_MS`、`CLAWGOD_CLASSIFIER_MODEL`、`CLAWGOD_CLASSIFIER_RETRIES`） |
+| **Ultraplan** | 通过 Claude Code Remote 进行多智能体规划 |
+| **Ultrareview** | 通过 Claude Code Remote 自动化 Bug 查找 |
+
+### 限制移除
+
+| 补丁 | 移除内容 |
+|------|---------|
+| **CYBER_RISK_INSTRUCTION** | 安全测试拒绝提示（渗透测试、C2 框架、漏洞利用） |
+| **URL 限制** | "禁止生成或猜测 URL" 指令 |
+| **操作审慎** | 破坏性操作前的强制确认 |
+| **登录提示** | 启动时的"未登录"提醒 |
+| **企业远程设置** | 组织托管的远程设置（`~/.claude/remote-settings.json`）——强制权限规则、`disableRemoteControl`、`allowManagedPermissionRulesOnly`、版本锁定。可用 `CLAWGOD_FEATURE_REMOTE_SETTINGS=false` 关闭 |
+
+### 隐私保护
+
+ClawGod 针对已识别的额外元数据附加路径，在本地 patched 客户端中实施保护。对于包含相应路径的上游版本，以下保护均默认开启。
+
+| 补丁 | 中和内容 |
+|------|---------|
+| **日期字符串 (qla)** | 系统提示词通过 Unicode 撇号变体（U+0027 / U+2019 / U+02BC / U+02B9）和日期分隔符（中国时区 `-` → `/`）编码用户地理位置。Patch 后始终使用 ASCII `'` 和原始日期格式 |
+| **地区检测探针 (rdp)** | 客户端三维检测：时区（`Asia/Shanghai` / `Asia/Urumqi`）、代理域名与 XOR 混淆的 100+ 域名黑名单比对、base URL 中的国产大模型关键词。Patch 后始终返回 null |
+| **撇号选择器 (odp)** | 根据检测结果选择四种 Unicode 撇号之一。Patch 后始终返回 ASCII `'`（纵深防御） |
+| **Git/环境信息字段** | 在 header 生成前阻断 `x-claude-code-wiggly-dove` 的自动采集，包括 Git origin 和环境信息。默认开启；已核对 Claude Code 2.1.299、2.1.301 和 2.1.303 |
+
+`wiggly-dove` 补丁会在采集器运行前，让共用的资格 gate 返回 false，阻止这条路径读取 Git origin、采集容器/沙箱等环境信息及生成 header。Git origin 可能暴露仓库主机名和组织/项目路径。即使上游开启 `tengu_wiggly_dove` 灰度，保护仍然生效，也不依赖 GrowthBook 配置覆盖。
+
+默认无需配置。如需明确保持两项保护开启，将以下字段合并到现有的 `~/.clawgod/patches.json`：
+
+```json
+{ "geo-neutralize": true, "wiggly-dove": true }
+```
+
+将任一项设为 `false` 会恢复对应的上游行为。`CLAWGOD_FEATURE_WIGGLY_DOVE` 等单次启动环境变量优先于文件配置，详见[功能开关](#功能开关)。
+
+保护范围限于上表列出的已识别元数据路径。正常模型请求中包含的提示词、工具结果和代码仍会发送至配置的端点；其他遥测、网关的数据处理方式及新出现的采集路径需要单独核查。上游实现变化、`wiggly-dove` matcher 无法确认补丁位置时，默认会在写入源码前中止；显式使用 `--tolerate-stale` 可能跳过此保护并保留上游行为。
+
+### 视觉
+
+| 补丁 | 效果 |
+|------|------|
+| **蓝色主题** | 品牌色 → 蓝色，一眼辨别是否已 Patch |
+| **消息过滤** | 显示对非 Anthropic 用户隐藏的内容 |
+
+### 可靠性
+
+| 功能 | 作用 |
+|------|------|
+| **Glob/Grep 恢复** | Bun 编译时将 `EMBEDDED_SEARCH_TOOLS=true` 内联为字面量，导致内置 Glob/Grep 工具被隐藏。Patch 还原 env 检查并加入 bfs/ugrep 可用性检测——在 Bun runtime 下运行时工具自动恢复 |
+| **渲染器 Shim（2.1.271+）** | Claude Code 2.1.271 的 TUI 渲染器依赖 `Bun.ant.CellSegmenter`，这是 Anthropic 自带 Bun 才有的私有 API。ClawGod 在 patched bundle 前加载一份 JS 实现，让 TUI 在标准 Bun 上正常绘制，而不是在第一帧前卡住 |
+| **1h Prompt Cache** | 强制启用 1h TTL allowlist（默认实际是 5m → 空闲后导致大量 cache_creation token 浪费） |
+| **第三方 Cache 修复** | 当 `baseURL` 指向非 Anthropic 域名时自动关闭 `x-anthropic-billing-header`。该 header 里的 `cch` 字段每请求都变，会让 DeepSeek / OneAPI / Bedrock / vLLM 以及所有 Anthropic 协议代理的 prompt-cache 命中率归零。不需要再自行配置 `CLAUDE_CODE_ATTRIBUTION_HEADER=0`。 |
+| **更新与重打补丁** | `claude update` 下载官方 npm 版本、提取源码并重新应用补丁；启动时不扫描已安装的原生版本 |
+| **更新通知** | 每 24h 异步检查 GitHub releases（非阻塞），发现新版本时启动前显示一行提示 |
+| **精简设置** | 三级 token 优化，作用于 `~/.claude/settings.json`。**on**（默认）：移除未使用工具定义 + 禁用 Workflows/Artifact，保留已有 Remote Control 设置。**max**：额外禁用 Remote Control，并移除 Plan mode、Agent Teams、内置 skills。**off**：撤销记录为 Lean 自己添加的设置 |
+
+> 使用 `claude --lean-on` / `claude --lean-max` / `claude --lean-off` 切换。`~/.clawgod/lean-state.json` 记录 Lean 自己添加的项，撤销时保留用户原有配置及后来显式改写的值（如 `"disableArtifact": false`）。旧安装缺少该记录时，已有同名值会保守保留。设置或状态 JSON 损坏时明确报错，不覆盖原文件。
+
+Lean 仅在 **max** 中添加 Remote Control（`/remote-control`、`/rc`）限制。切回 **on/off** 只撤销有归属记录的限制；用户设置及旧安装未记录的值继续保留。仅 **max** 默认设置 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`；用户显式设置的环境变量限制保持不变。远程控制仍需满足上游账号、认证、端点及组织策略要求。
+
+## 使用
+
+```bash
+claude              # 已 Patch 的 Claude Code（替换官方 launcher）
+clawgod             # 同 `claude`，显式且永远生效的入口
+claude.orig         # 原版未修改版本（自动备份）
+```
+
+`clawgod` 是一个无歧义的入口：Windows 上即便 `claude.exe` 抢占了 `claude.cmd`，`clawgod.cmd` 始终生效；即便官方自动更新覆盖了 `claude`，`clawgod` 仍跑 patched 版本。
+
+## 配置
+
+首次启动会自动生成 `~/.clawgod/provider.json`。填入 `apiKey` 即可**跳过 OAuth 登录**，对接任何 Anthropic 协议端点。 Provider JSON 损坏时会明确报错，不再静默回退。
+
+```json
+{
+  "apiKey": "sk-ant-...",
+  "baseURL": "https://api.anthropic.com",
+  "model": "",
+  "smallModel": "",
+  "effort": "",
+  "timeoutMs": 3000000
+}
+```
+
+- **填写 `apiKey`**：ClawGod 注入 `ANTHROPIC_API_KEY` 并与 `~/.claude/settings.json` 隔离。默认要求上游兼容 Anthropic Messages 协议；仅支持 Chat Completions 的网关请使用下方配置。`baseURL` 指向非 Anthropic 域名时，仅注入 `ANTHROPIC_AUTH_TOKEN` 以适配网关鉴权。
+- **留空 `apiKey`**：走 OAuth 路径，执行一次 `claude auth login`，`~/.claude` 下的 subagents / skills / MCP 配置继续有效。
+- **`effort`**：设置推理强度，已有的 `CLAUDE_CODE_EFFORT_LEVEL` 优先。使用 `protocol: "openai-chat"`、`type: "grok"` 或 `"openai-compat"` 时，即使 Claude 没有为自定义模型发送 effort，代理也会发送配置对应的 `reasoning_effort`。`low`、`medium`、`high`、`xhigh` 原样传递，`max` 转为 `xhigh`，`auto` 则省略该参数、使用上游默认值。请选用上游模型支持的档位。配置为空或未设置时，沿用请求中的 effort；请求也未指定时不添加该参数。
+
+### OpenAI Chat Completions 端点
+
+如果上游提供 `/v1/chat/completions`，请配置：
+
+```json
+{
+  "protocol": "openai-chat",
+  "apiKey": "sk-...",
+  "baseURL": "https://example.com/v1",
+  "model": "上游模型名称",
+  "smallModel": "上游模型名称"
+}
+```
+
+`baseURL` 填 API 基础地址（按上游要求包含 `/v1`），**不要**填写完整的 `/chat/completions` 路径。模型名称必须是上游支持的 ID。ClawGod 会在启动器进程内启动本地转换代理，无需部署外部网关或独立服务。`timeoutMs` 同时约束上游请求和响应流；已有的 `API_TIMEOUT_MS` 优先。 本地代理使用启动器自动管理的随机鉴权 token，无需用户额外配置。
+
+- 不填 `protocol` 时保持原有行为。继续兼容 `type: "openai-compat"` 和 `type: "grok"`；显式 `protocol` 优先。`protocol: "anthropic"` 直接使用 Messages 协议。Grok 默认地址为 `https://api.x.ai/v1`，继续支持从 Grok 配置或环境变量读取密钥；其他 Chat 提供商必须填写 API 基础地址和密钥。
+- 支持文本、system、工具调用/结果、强制工具选择、并行工具控制、流式响应、usage，以及 base64/URL 图片。并行工具参数会在组装完整并验证后输出内容块；文本仍实时输出。上游缺少 usage 时保持为零，不伪造精确计数。
+- base64 PDF 转为 Chat Completions 的 `file` 块，要求上游模型/API 支持文件；文本型文档转为文本。PDF URL、文档引用、非文本工具结果、服务端工具和结构化输出格式会明确报错。历史 Anthropic thinking/signature 块会省略，模型专属推理能力无法无损转换。
+- `/v1/messages/count_tokens` 使用本地估算，不额外调用计费接口。响应头 `x-clawgod-token-count: estimate` 标记估算结果。算法为文本 UTF-8 字节数 / 3 加消息开销，每张图片预算 1600 token，PDF 按解码字节数 / 3 估算。这不是模型 tokenizer；PDF 字节数不等于页数，估算不能保证上下文窗口一定容纳得下。
+- Chat 的 `stop` 映射为 `end_turn`（响应包含工具调用时映射为 `tool_use`），因为该协议不区分自然结束与命中停止序列。`length`、`tool_calls`、`content_filter` 分别映射为 `max_tokens`、`tool_use`、`refusal`。上游 HTTP 错误保留状态码和 `Retry-After`；损坏或提前截断的流会报错。
+- 暂不支持 `/v1/responses` 和自动协议探测；`openai-chat` 仅用于 Chat Completions 端点。
+
+### 功能开关
+
+`~/.clawgod/patches.json`（首次安装自动创建）可持久关闭指定功能，配置在更新和重装后保留。未列出的 key 默认开启。
+
+```json
+{ "theme": false, "geo-neutralize": false }
+```
+
+| Feature id | 控制内容 |
+|------------|----------|
+| `agent-teams` | Agent Teams 恒开 |
+| `computer-use` | Computer Use 解锁 |
+| `ultraplan` | Ultraplan 命令 |
+| `ultrareview` | Ultrareview 命令 |
+| `voice-mode` | Voice Mode |
+| `auto-mode` | 第三方 API 的 auto-mode 模型选择 |
+| `classifier-tuning` | Auto-mode 分类器覆盖：`CLAWGOD_CLASSIFIER_TIMEOUT_MS`（deadline 下限；未设置=按上下文 60-120s，需 v2.1.251+）、`CLAWGOD_CLASSIFIER_MODEL`、`CLAWGOD_CLASSIFIER_RETRIES`（未设置=4） |
+| `theme` | 蓝色品牌/Logo 配色 |
+| `geo-neutralize` | 中和 system prompt 中的地区/代理隐写 |
+| `wiggly-dove` | 阻断 `x-claude-code-wiggly-dove` 自动采集 Git/环境信息；关闭此保护会恢复上游行为 |
+| `cyber-risk` | 移除 system prompt 中的 CYBER_RISK_INSTRUCTION |
+| `url-restriction` | 移除 URL 生成限制 |
+| `cautious-actions` | 移除 "Executing actions with care" 段落 |
+| `not-logged-in` | 移除 "Not logged in" 提示 |
+| `message-filter` | 绕过非 ant 用户的消息/附件过滤 |
+| `bun-ant-shim` | Claude Code 2.1.271+ 的 `Bun.ant.CellSegmenter` 渲染器 shim（见「可靠性」） |
+
+仅对单次启动生效时用环境变量——feature id 大写、连字符转下划线：
+
+```bash
+CLAWGOD_FEATURE_THEME=false claude        # 本次运行关闭蓝色主题
+CLAWGOD_FEATURE_GEO_NEUTRALIZE=true claude # 临时恢复 patches.json 里关闭的功能
+```
+
+## 工作原理
+
+从 `@anthropic-ai/claude-code` v2.1.113 起，npm 包不再带 `cli.js`——它只是个 thin loader 转发到平台特定的 Bun standalone 二进制。ClawGod 这样适配：
+
+1. 从 npm 下载对应平台的官方包，使用 latest 或显式指定版本
+2. 从 `__BUN` segment（Mach-O / ELF / PE）抽出嵌入的 `cli.js` 源码
+3. 抽出嵌入的 `.node` 原生模块（audio-capture、image-processor、computer-use-*、url-handler）放到 `~/.clawgod/vendor/`
+4. 把 `/$bunfs/...` 虚拟路径重写到本地 vendor 路径
+5. 应用 AST 语义补丁和遗留正则补丁，写入运行时源码前检查最终 JavaScript 语法
+6. `claude` / `clawgod` launcher 在 Bun runtime 下跑 patched cli.js
+7. 在 patched cli.js 之前加载 `bun-ant-shim.cjs`，补上 Claude Code 2.1.271+ 需要的 `Bun.ant.CellSegmenter` 渲染接口
+
+`~/.clawgod/.source-version` 记录已打补丁的原生版本。更新通过 `claude update` 执行；原生后台更新被禁用，启动器不扫描 `versions/`，也不在启动时自动重新打补丁。
+
+## 更新
+
+**直接照常跑 `claude update` 即可。** ClawGod 把这条命令 patch 成走自己的 installer——从 npm 拉 Anthropic 当前发布（`@anthropic-ai/claude-code-<plat>@latest`）、重新提取 cli.js、重新打补丁、重写 launcher。所以上游 `claude update` 命令对用户依然如常工作——一条命令拿到最新 Claude + 补丁仍然生效。
+
+额外选项：
+
+```bash
+claude update --version 2.1.180   # 锁定到指定 Claude Code 版本
+claude update --no-upgrade        # 不下载新版，只用最新 patcher 重新打补丁
+```
+
+`--version` 适用于新版有问题、想停留在已知稳定版本时。`--no-upgrade` 使用当前版本的完整干净源码备份重新应用最新补丁。旧安装若缺少这份备份，会下载一次相同版本来恢复源码，不会升级 Claude；之后重复打补丁直接复用本地备份。
+
+如果你想直接调 installer（效果一样，两条路径都会拉同一个上游 release 并重新 patch）:
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://github.com/0Chencc/clawgod/releases/latest/download/install.sh | bash
+```
+
+**Windows:**
+```powershell
+irm https://github.com/0Chencc/clawgod/releases/latest/download/install.ps1 | iex
+```
+
+如果你想脱离 ClawGod、使用 Anthropic 原本的 `claude update`（它会写到自己管的目录、并把我们的 launcher 替换掉），请先卸载：
+
+```bash
+bash ~/.clawgod/install.sh --uninstall
+```
+
+## 卸载
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://github.com/0Chencc/clawgod/releases/latest/download/install.sh | bash -s -- --uninstall
+hash -r  # 刷新 shell 缓存
+```
+
+**Windows:**
+```powershell
+irm https://github.com/0Chencc/clawgod/releases/latest/download/install.ps1 -OutFile install.ps1; .\install.ps1 -Uninstall
+```
+
+卸载会把 `claude.orig` 还原成 `claude`，并移除 `clawgod` 别名。
+
+> 安装或卸载后，如果命令未立即生效，请重启终端或执行 `hash -r`。
+
+## 许可证
+
+GPL-3.0 — 与 Anthropic 无关，风险自负。
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=0chencc%2Fclawgod&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=0chencc/clawgod&type=date&theme=dark&legend=top-left&sealed_token=ntGY6im49ymMeD9BXSi0OmH_kyhnnTL9pGyfm2rLYBTlzEcTeQf4o6RA6HqXhGVzdD6xXlk20KCFAyk4gWIpEda3TVEm4re4eJ0xoosRcUdYMui5B7Hp6e3YBUAr2tWmCZu2ZkRWVCOEdCOldK9S_h7Jn7NIjGEEgWywl2ZZOq7xpUpT4IkkXKKxGNJi" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=0chencc/clawgod&type=date&legend=top-left&sealed_token=ntGY6im49ymMeD9BXSi0OmH_kyhnnTL9pGyfm2rLYBTlzEcTeQf4o6RA6HqXhGVzdD6xXlk20KCFAyk4gWIpEda3TVEm4re4eJ0xoosRcUdYMui5B7Hp6e3YBUAr2tWmCZu2ZkRWVCOEdCOldK9S_h7Jn7NIjGEEgWywl2ZZOq7xpUpT4IkkXKKxGNJi" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=0chencc/clawgod&type=date&legend=top-left&sealed_token=ntGY6im49ymMeD9BXSi0OmH_kyhnnTL9pGyfm2rLYBTlzEcTeQf4o6RA6HqXhGVzdD6xXlk20KCFAyk4gWIpEda3TVEm4re4eJ0xoosRcUdYMui5B7Hp6e3YBUAr2tWmCZu2ZkRWVCOEdCOldK9S_h7Jn7NIjGEEgWywl2ZZOq7xpUpT4IkkXKKxGNJi" />
+ </picture>
+</a>

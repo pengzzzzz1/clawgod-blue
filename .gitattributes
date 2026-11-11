@@ -1,0 +1,8 @@
+# Installer sources and generated release artifacts must be byte-reproducible
+# on every developer platform. PowerShell output is ASCII-only without a BOM;
+# line-ending conversion must not rewrite either generated artifact.
+build.js text eol=lf
+install.sh text eol=lf
+install.ps1 text eol=lf
+src/** text eol=lf
+docs/clawgod-handbook/hooks/** text eol=lf

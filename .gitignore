@@ -1,0 +1,14 @@
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+provider.json
+**/.clawgod/
+*.tmp
+_gh_*
+web/dist/
+.idea/
+.vscode/
+*.rar

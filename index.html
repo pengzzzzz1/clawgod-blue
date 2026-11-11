@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ClawGod Blue — 蓝色 Claude Code 运行时</title>
+  <meta name="description" content="Dingfire 开源的 ClawGod Blue：给官方 Claude Code 打本地补丁。蓝色身份、功能解锁、网安任务总览。" />
+  <meta property="og:title" content="ClawGod Blue" />
+  <meta property="og:description" content="蓝色 Claude Code 运行时。本地补丁，不是第三方客户端。" />
+  <link rel="icon" href="bypass.png" />
+  <style>
+    :root {
+      --ink: #06101c;
+      --panel: #0b1c33;
+      --line: rgba(185, 212, 255, .14);
+      --signal: #3b82f6;
+      --ice: #b9d4ff;
+      --paper: #f2f6ff;
+      --copper: #c9a36a;
+      --ok: #5eead4;
+      --mono: "Cascadia Code", "Sarasa Mono SC", "JetBrains Mono", Consolas, monospace;
+      --sans: "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--ink); color: var(--paper); font-family: var(--sans); }
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(59,130,246,.22), transparent 55%),
+        radial-gradient(900px 500px at -10% 110%, rgba(201,163,106,.08), transparent 50%),
+        var(--ink);
+    }
+    a { color: var(--ice); text-decoration: none; }
+    a:hover { color: #fff; }
+    .wrap { width: min(1120px, calc(100% - 40px)); margin: 0 auto; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 22px 0 8px; border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: baseline; gap: 10px; letter-spacing: .18em; font-weight: 700; }
+    .brand b { color: var(--signal); letter-spacing: .28em; }
+    .brand small { color: var(--copper); letter-spacing: .32em; font-size: 10px; font-weight: 600; }
+    nav { display: flex; gap: 18px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+    .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; padding: 64px 0 48px; align-items: center; }
+    h1 {
+      font-size: clamp(42px, 7vw, 84px); line-height: .88; margin: 0 0 22px;
+      font-weight: 750; letter-spacing: -.04em;
+    }
+    h1 span { color: var(--signal); display: block; }
+    .lede { font-size: 18px; line-height: 1.55; color: var(--ice); max-width: 38ch; }
+    .cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 18px; border-radius: 999px; font-weight: 650; font-size: 14px;
+      border: 1px solid transparent;
+    }
+    .btn.primary { background: var(--signal); color: #07101d; }
+    .btn.ghost { border-color: var(--line); color: var(--paper); }
+    .radar {
+      position: relative; aspect-ratio: 1; border-radius: 50%;
+      border: 1px solid var(--line);
+      background:
+        repeating-radial-gradient(circle at 50% 50%, transparent 0 38px, rgba(59,130,246,.07) 39px 40px),
+        conic-gradient(from 210deg, transparent 0 78%, rgba(59,130,246,.35) 88%, transparent 100%);
+      overflow: hidden;
+    }
+    .radar::after {
+      content: ""; position: absolute; inset: 18%;
+      border: 1px dashed rgba(185,212,255,.25); border-radius: 50%;
+    }
+    .radar .core {
+      position: absolute; inset: 32%; border-radius: 50%;
+      background: rgba(6,16,28,.72); border: 1px solid rgba(59,130,246,.5);
+      display: grid; place-items: center; text-align: center;
+      box-shadow: 0 0 40px rgba(59,130,246,.25);
+    }
+    .radar .core strong { display: block; letter-spacing: .4em; font-size: 13px; color: var(--signal); }
+    .radar .core em { font-style: normal; font-size: 11px; color: var(--ok); letter-spacing: .22em; }
+    .beam {
+      position: absolute; inset: 0; transform-origin: 50% 50%;
+      background: conic-gradient(from 0deg, transparent 0 72%, rgba(59,130,246,.55) 86%, transparent 100%);
+      animation: sweep 4.8s linear infinite;
+    }
+    @keyframes sweep { to { transform: rotate(1turn); } }
+    .console {
+      margin: 0 0 64px; background: var(--panel); border: 1px solid var(--line);
+      border-radius: 18px; overflow: hidden;
+    }
+    .console .bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 16px; font-family: var(--mono); font-size: 12px; color: var(--ice);
+      border-bottom: 1px solid var(--line); letter-spacing: .08em;
+    }
+    .console pre {
+      margin: 0; padding: 22px 20px 26px; font-family: var(--mono); font-size: 13.5px;
+      line-height: 1.7; color: #dbe7ff; overflow: auto;
+    }
+    .console .ok { color: var(--ok); }
+    .console .cmd { color: var(--copper); }
+    section h2 {
+      font-size: 13px; letter-spacing: .28em; text-transform: uppercase;
+      color: var(--copper); margin: 0 0 18px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 56px; }
+    article {
+      background: rgba(11,28,51,.72); border: 1px solid var(--line);
+      border-radius: 16px; padding: 20px 18px 18px; min-height: 150px;
+    }
+    article h3 { margin: 0 0 8px; font-size: 18px; }
+    article p { margin: 0; color: var(--ice); line-height: 1.55; font-size: 14px; }
+    .shot {
+      display: grid; grid-template-columns: .9fr 1.1fr; gap: 28px; align-items: center;
+      margin-bottom: 64px;
+    }
+    .shot img {
+      width: 100%; border-radius: 16px; border: 1px solid var(--line);
+      display: block; background: #000;
+    }
+    footer {
+      border-top: 1px solid var(--line); padding: 28px 0 48px;
+      display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      color: var(--ice); font-size: 13px;
+    }
+    @media (max-width: 860px) {
+      .hero, .grid, .shot { grid-template-columns: 1fr; }
+      .radar { width: min(320px, 80vw); margin: 0 auto; }
+      nav { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .beam { animation: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">CLAW<b>GOD</b> <small>BLUE</small></div>
+      <nav>
+        <a href="#what">程序</a>
+        <a href="#install">安装</a>
+        <a href="https://github.com/pengzzzzz1/clawgod-blue">GitHub</a>
+      </nav>
+    </header>
+
+    <div class="hero">
+      <div>
+        <h1>蓝色运行时<span>不是换皮客户端</span></h1>
+        <p class="lede">Dingfire 开源的 ClawGod Blue：给官方 Claude Code 打本地补丁。蓝色身份可核验，功能解锁，网安任务有台账。</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/pengzzzzz1/clawgod-blue">打开仓库</a>
+          <a class="btn ghost" href="#install">安装命令</a>
+        </div>
+      </div>
+      <div class="radar" aria-hidden="true">
+        <div class="beam"></div>
+        <div class="core">
+          <div>
+            <strong>BLUE</strong>
+            <em>VERIFIED</em>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="console" id="install">
+      <div class="bar"><span>~\.local\bin</span><span>clawgod --blue-status</span></div>
+      <pre><span class="cmd">PS&gt;</span> git clone https://github.com/pengzzzzz1/clawgod-blue.git
+<span class="cmd">PS&gt;</span> cd clawgod-blue
+<span class="cmd">PS&gt;</span> powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+<span class="cmd">PS&gt;</span> clawgod --blue-status
+<span class="ok">theme     verified
+palette   rgb(59,130,246)
+launcher  ~\.local\bin\claude.cmd</span></pre>
+    </div>
+
+    <section id="what">
+      <h2>程序介绍</h2>
+      <div class="grid">
+        <article>
+          <h3>本地补丁器</h3>
+          <p>从 npm 拉官方 Claude Code，在本机打补丁后接管 <code>claude</code>。蓝色 Logo 已补丁，橙色仍是原版。</p>
+        </article>
+        <article>
+          <h3>功能解锁</h3>
+          <p>内部命令、Agent Teams、Auto-mode、Computer Use。拆掉安全测试拒答、URL 禁猜、企业远程设置门。</p>
+        </article>
+        <article>
+          <h3>任务总览</h3>
+          <p><code>clawgod --security</code> 管审计 / 事件 / 复测：目标、步骤、证据哈希、发现项、Markdown 报告。</p>
+        </article>
+        <article>
+          <h3>蓝色核验</h3>
+          <p><code>--blue-status</code> 对照主题源码 SHA256。只有 verified 才算蓝，不是改个图标。</p>
+        </article>
+        <article>
+          <h3>隐私中和</h3>
+          <p>日期隐写、地区探针、<code>wiggly-dove</code> 对 Git origin 和环境采集，默认挡住。</p>
+        </article>
+        <article>
+          <h3>开源储蓄</h3>
+          <p>GPL-3.0 公开仓库。上游 0Chencc/clawgod，本版由 Dingfire 维护蓝色工作区发行。</p>
+        </article>
+      </div>
+    </section>
+
+    <div class="shot">
+      <img src="bypass.png" alt="ClawGod Blue 补丁后的终端效果" />
+      <div>
+        <h2>怎么用</h2>
+        <p class="lede" style="max-width:none">克隆本仓库，跑安装器，再用 <code>claude.cmd</code> 启动。不要点 <code>claude.orig.exe</code>。任务目录里执行 <code>clawgod --security init audit</code> 即可开台账。</p>
+      </div>
+    </div>
+
+    <footer>
+      <div>ClawGod Blue · Dingfire / pengzzzzz1 · GPL-3.0</div>
+      <div>
+        <a href="https://github.com/pengzzzzz1/clawgod-blue">源码</a>
+        ·
+        <a href="https://github.com/0Chencc/clawgod">上游 ClawGod</a>
+        ·
+        <a href="BLUE-README.md">蓝版手册</a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

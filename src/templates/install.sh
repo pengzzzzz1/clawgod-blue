@@ -1,0 +1,781 @@
+#!/bin/bash
+set -e
+
+# ─────────────────────────────────────────────────────────
+#  ClawGod Installer
+#
+#  Downloads Claude Code from npm, applies patches, replaces claude command
+#
+#  用法:
+#    curl -fsSL https://raw.githubusercontent.com/0Chencc/clawgod/main/install.sh | bash
+#    # 或
+#    bash install.sh [--version 2.1.89] [--no-upgrade] [--tolerate-stale]
+# ─────────────────────────────────────────────────────────
+
+CLAWGOD_DIR="$HOME/.clawgod"
+BIN_DIR="$HOME/.local/bin"
+VERSION="${CLAWGOD_VERSION:-latest}"
+NO_UPGRADE="${CLAWGOD_NO_UPGRADE:-}"
+TOLERATE_STALE="${CLAWGOD_TOLERATE_STALE:-}"
+LEAN_OFF="${CLAWGOD_LEAN_OFF:-}"
+LEAN_ON="${CLAWGOD_LEAN_ON:-}"
+LEAN_MAX="${CLAWGOD_LEAN_MAX:-}"
+CLAWGOD_SELF_VERSION="0.0.0-dev"  # injected by release workflow from git tag
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --version) VERSION="$2"; shift 2 ;;
+    --no-upgrade) NO_UPGRADE=1; shift ;;
+    --tolerate-stale) TOLERATE_STALE=1; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
+    --lean-off) LEAN_OFF=1; shift ;;
+    --lean-on) LEAN_ON=1; shift ;;
+    --lean-max) LEAN_MAX=1; shift ;;
+    *) shift ;;
+  esac
+done
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+DIM='\033[2m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+info()  { echo -e "  ${GREEN}✓${NC} $1"; }
+warn()  { echo -e "  ${RED}✗${NC} $1"; }
+dim()   { echo -e "  ${DIM}$1${NC}"; }
+
+echo ""
+echo -e "${BOLD}  ClawGod Installer${NC}"
+echo ""
+
+# ─── Uninstall ─────────────────────────────────────────
+
+if [ "$UNINSTALL" = "1" ]; then
+  # Restore only changes tracked as ours before removing launchers or helpers.
+  # Legacy installations without ownership state retain their user settings.
+  if [ -f "$CLAWGOD_DIR/lean-settings.cjs" ] && [ -f "$CLAWGOD_DIR/lean-state.json" ]; then
+    node "$CLAWGOD_DIR/lean-settings.cjs" "$HOME/.claude/settings.json" off "$CLAWGOD_DIR/lean-state.json"
+  fi
+  CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+  for DIR in "${CLAUDE_BIN:+$(dirname "$CLAUDE_BIN")}" "$BIN_DIR"; do
+    [ -z "$DIR" ] && continue
+    if [ -e "$DIR/claude.orig" ]; then
+      # Has backup — restore it
+      mv "$DIR/claude.orig" "$DIR/claude"
+      info "Original claude restored ($DIR/claude)"
+    elif [ -f "$DIR/claude" ] && grep -q "clawgod" "$DIR/claude" 2>/dev/null; then
+      # Our launcher, no backup — remove it (otherwise it points to deleted cli.js)
+      rm -f "$DIR/claude"
+      info "Removed ClawGod launcher ($DIR/claude)"
+    fi
+    # Always remove the explicit clawgod alias if it's ours
+    if [ -f "$DIR/clawgod" ] && grep -q "clawgod" "$DIR/clawgod" 2>/dev/null; then
+      rm -f "$DIR/clawgod"
+      info "Removed ClawGod alias ($DIR/clawgod)"
+    fi
+  done
+  rm -rf "$CLAWGOD_DIR/bunfs" "$CLAWGOD_DIR/pathmap.json" "$CLAWGOD_DIR/lean-settings.cjs" "$CLAWGOD_DIR/blue-status.cjs" "$CLAWGOD_DIR/security-workspace.cjs" "$CLAWGOD_DIR/blue-patch-state.json" "$CLAWGOD_DIR/node_modules" "$CLAWGOD_DIR/vendor" "$CLAWGOD_DIR/bun-runtime" "$CLAWGOD_DIR/cli.original.js" "$CLAWGOD_DIR/cli.original.js.bak" "$CLAWGOD_DIR/cli.original.cjs" "$CLAWGOD_DIR/cli.original.cjs.bak" "$CLAWGOD_DIR/source-backup.json" "$CLAWGOD_DIR/cli.js" "$CLAWGOD_DIR/cli.cjs" "$CLAWGOD_DIR/patch.mjs" "$CLAWGOD_DIR/ast-patches.mjs" "$CLAWGOD_DIR/acorn.mjs" "$CLAWGOD_DIR/acorn.LICENSE" "$CLAWGOD_DIR/patch.js" "$CLAWGOD_DIR/extract-natives.mjs" "$CLAWGOD_DIR/post-process.mjs" "$CLAWGOD_DIR/repatch.mjs" "$CLAWGOD_DIR/startup-check.cjs" "$CLAWGOD_DIR/startup-check.log" "$CLAWGOD_DIR/openai-proxy.cjs" "$CLAWGOD_DIR/feature-gates.cjs" "$CLAWGOD_DIR/runtime-helpers.cjs" "$CLAWGOD_DIR/bun-ant-shim.cjs" "$CLAWGOD_DIR/clawgod-import" "$CLAWGOD_DIR/claude.staged" "$CLAWGOD_DIR/.source-version"
+  hash -r 2>/dev/null
+  info "ClawGod uninstalled"
+  echo ""
+  warn "  Restart your terminal or run: hash -r"
+  echo ""
+  exit 0
+fi
+
+# ─── Prerequisites ─────────────────────────────────────
+
+if ! command -v node &>/dev/null; then
+  warn "Node.js is required (>= 18) for the patcher. Install from https://nodejs.org"
+  exit 1
+fi
+
+NODE_VERSION=$(node -e "console.log(process.versions.node.split('.')[0])")
+if [ "$NODE_VERSION" -lt 18 ]; then
+  warn "Node.js >= 18 required (found v$NODE_VERSION)"
+  exit 1
+fi
+
+# ─── Ensure Bun (runtime that executes the patched cli.js) ─────────────
+
+BUN_BIN=""
+if command -v bun &>/dev/null; then
+  BUN_BIN=$(command -v bun)
+elif [ -x "$HOME/.bun/bin/bun" ]; then
+  BUN_BIN="$HOME/.bun/bin/bun"
+else
+  dim "Installing Bun (required runtime for v2.1.113+ cli.js) ..."
+  curl -fsSL https://bun.sh/install | bash >/dev/null 2>&1 || true
+  BUN_BIN="$HOME/.bun/bin/bun"
+  if [ ! -x "$BUN_BIN" ]; then
+    warn "Bun installation failed. Install manually: https://bun.sh/install"
+    exit 1
+  fi
+fi
+info "Bun: $($BUN_BIN --version)"
+
+# ─── Bun version pre-flight ───────────────────────────────────────────
+# Anthropic builds the native binary with Bun's canary channel; stable
+# bun.sh trails by one version. Bun < 1.3.14 panics on cli.original.cjs
+# with "Expected CommonJS module to have a function wrapper". Refuse
+# early — no npm download / no patch / no late sanity surprise.
+# Bump MIN_BUN_VERSION when Anthropic moves the embedded Bun forward
+# again (track via 'bun upgrade --canary' on a runner + smoke test).
+
+MIN_BUN_VERSION="1.3.14"
+BUN_VERSION_RAW=$($BUN_BIN --version 2>/dev/null | head -1)
+BUN_VERSION_NUM=$(echo "$BUN_VERSION_RAW" | sed 's/-.*//')
+if [ -z "$BUN_VERSION_NUM" ] \
+   || [ "$(printf '%s\n%s\n' "$BUN_VERSION_NUM" "$MIN_BUN_VERSION" | sort -V | head -1)" != "$MIN_BUN_VERSION" ]; then
+  warn ""
+  warn "Bun ${BUN_VERSION_RAW:-<unknown>} is below the required minimum ($MIN_BUN_VERSION)."
+  warn ""
+  warn "  Anthropic builds claude-code with Bun's canary channel. Older Bun"
+  warn "  panics on cli.original.cjs with 'Expected CommonJS module to have"
+  warn "  a function wrapper'. This is a hard requirement, not a warning."
+  warn ""
+  warn "  Upgrade with one of:"
+  warn "    bun upgrade --canary               (if installed via curl/install.sh)"
+  warn "    brew upgrade bun                   (homebrew)"
+  warn "    scoop uninstall bun && \\           (scoop — shim blocks self-replace)"
+  warn "      irm https://bun.sh/install.ps1 | iex && bun upgrade --canary"
+  warn ""
+  warn "  Then re-run this installer."
+  exit 1
+fi
+
+# ─── ripgrep prerequisite (search/grep tool) ──────────────────────────
+# Without rg the Grep tool inside Claude Code fails. Bun-bundled ripgrep
+# is only reachable from inside the standalone executable; running the
+# extracted cli.js under Bun runtime means we depend on system rg.
+# This is a hard prerequisite — refuse to install otherwise.
+
+if ! command -v rg &>/dev/null; then
+  warn "ripgrep (rg) is required but not found in PATH."
+  warn "  Claude Code's Grep tool will not function without it."
+  warn ""
+  case "$(uname -s)" in
+    Darwin) warn "  Install: brew install ripgrep" ;;
+    Linux)  warn "  Install: apt install ripgrep   |   dnf install ripgrep   |   pacman -S ripgrep" ;;
+    *)      warn "  Install: https://github.com/BurntSushi/ripgrep#installation" ;;
+  esac
+  warn ""
+  warn "  Re-run this script after installing rg."
+  exit 1
+fi
+info "ripgrep: $(rg --version | head -1)"
+
+# ─── Snapshot existing installation for rollback on failure ──────────
+# This starts before the first payload write for fresh, full and no-upgrade
+# installs, and stays live until all launchers have been replaced.
+INSTALL_NODE=$(command -v node)
+TRANSACTION_DIR=$(mktemp -d "${TMPDIR:-/tmp}/clawgod-rollback-XXXXXX")
+TRANSACTION_HELPER="$TRANSACTION_DIR/transaction.cjs"
+PREV_BACKUP_DIR="$TRANSACTION_DIR/snapshot"
+cat > "$TRANSACTION_HELPER" << 'TRANSACTION_EOF'
+{{CLAWGOD:install-transaction.cjs}}
+TRANSACTION_EOF
+CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+if [ -z "$CLAUDE_BIN" ] || { [ ! -f "$CLAUDE_BIN" ] && [ ! -L "$CLAUDE_BIN" ]; }; then
+  CLAUDE_BIN="$BIN_DIR/claude"
+fi
+if ! "$INSTALL_NODE" "$TRANSACTION_HELPER" snapshot "$PREV_BACKUP_DIR" "$CLAWGOD_DIR" "$BIN_DIR" "$HOME/.claude/settings.json" "$CLAUDE_BIN"; then
+  rm -rf "$TRANSACTION_DIR"
+  exit 1
+fi
+rollback_install() {
+  local status=$?
+  trap - EXIT
+  if [ -n "$PREV_BACKUP_DIR" ]; then
+    dim "Rolling back installation files, settings and launchers ..."
+    if "$INSTALL_NODE" "$TRANSACTION_HELPER" restore "$PREV_BACKUP_DIR"; then
+      info "Restored installation state."
+      rm -rf "$TRANSACTION_DIR"
+    else
+      warn "Rollback failed; backup kept at $TRANSACTION_DIR"
+      [ "$status" -ne 0 ] || status=1
+    fi
+  fi
+  return "$status"
+}
+trap rollback_install EXIT
+# ─── End transaction setup ──────────────────────────────────────────
+
+# ─── Handle --no-upgrade (re-patch the installed version) ───────────
+mkdir -p "$CLAWGOD_DIR" "$BIN_DIR"
+
+cat > "$CLAWGOD_DIR/acorn.mjs" << 'ACORN_EOF'
+{{CLAWGOD:acorn.mjs}}
+ACORN_EOF
+cat > "$CLAWGOD_DIR/acorn.LICENSE" << 'ACORN_LICENSE_EOF'
+{{CLAWGOD:acorn.LICENSE}}
+ACORN_LICENSE_EOF
+
+if [ "$NO_UPGRADE" = "1" ]; then
+  if [ ! -f "$CLAWGOD_DIR/cli.original.cjs" ]; then
+    warn "--no-upgrade requires an existing installation."
+    warn "Run a full install first (without --no-upgrade)."
+    exit 1
+  fi
+  if [ -f "$CLAWGOD_DIR/source-backup.json" ] && {
+    [ ! -f "$CLAWGOD_DIR/pathmap.json" ] || node -e '
+const paths = require(process.argv[1]);
+process.exit(Object.values(paths).every(entry => typeof entry.loader === "string") ? 0 : 1);
+' "$CLAWGOD_DIR/pathmap.json";
+  }; then
+    info "Using complete clean-source backup (--no-upgrade)"
+  else
+    # Old backups lack clean chunks or asset loader metadata. Recover the exact
+    # installed version so --no-upgrade also repairs asset loading (#233).
+    VERSION=$(node -e '
+const fs = require("fs");
+const source = fs.readFileSync(process.argv[1], "utf8");
+let stamp = "";
+try { stamp = fs.readFileSync(process.argv[2], "utf8").trim(); } catch {}
+const version = stamp.match(/^(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/)?.[1] ||
+  source.match(/Version:\s*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/)?.[1];
+if (!version) process.exit(1);
+console.log(version);
+' "$CLAWGOD_DIR/cli.original.cjs" "$CLAWGOD_DIR/.source-version") || {
+      warn "No complete source backup and installed version is unknown. Reinstall with --version <version>."
+      exit 1
+    }
+    NO_UPGRADE=0
+    info "Recovering clean source for installed version $VERSION (one-time download, no version upgrade)"
+  fi
+fi
+if [ "$NO_UPGRADE" != "1" ]; then
+
+# ─── Locate native Bun binary (cli.js source) ──────────────────────────
+# v2.1.113+ ships a Bun standalone executable as the only canonical form.
+# We extract cli.js text from this binary, patch it, then run via Bun
+# runtime. Source: npm registry (@anthropic-ai/claude-code-<platform>).
+# Local binary detection is intentionally skipped — see policy note below.
+
+mkdir -p "$CLAWGOD_DIR" "$BIN_DIR"
+
+NATIVE_BIN=""
+NATIVE_BIN_LABEL=""
+NATIVE_BIN_TMPDIR=""
+
+# Detection policy: ALWAYS pull from the npm registry @latest.
+#
+# Earlier versions of this script also probed local `node_modules` roots
+# (npm-global, bun-global) before falling back to the registry. That was
+# a stale-source trap: once clawgod is installed it patches out
+# `claude update`, so users never re-run `npm install -g` / `bun add -g`.
+# Both directories freeze at whatever version was on disk the day clawgod
+# was first installed, and `claude update` (which is now redirected here)
+# would re-detect that frozen binary forever — never reaching the
+# registry. See INCIDENT_LOG 2026-04-29 entry. The fix is to skip local
+# detection entirely; the npm tarball is ~60-90 MB compressed, fetched
+# once per upgrade, and npm's HTTP cache keeps repeats fast.
+
+# Detect platform suffix (used by the npm fetch below)
+case "$(uname -s)" in
+  Darwin) os="darwin" ;;
+  Linux)  os="linux" ;;
+  *)      os="" ;;
+esac
+case "$(uname -m)" in
+  arm64|aarch64) arch="arm64" ;;
+  x86_64|amd64)  arch="x64" ;;
+  *)             arch="" ;;
+esac
+if [ "$os" = "linux" ] && (ldd /bin/ls 2>/dev/null | grep -q musl); then
+  PLATFORM="${os}-${arch}-musl"
+else
+  PLATFORM="${os}-${arch}"
+fi
+
+# Pull the Bun standalone binary from the npm registry. Anthropic publishes
+# per-platform packages (e.g. claude-code-darwin-arm64); their tarball ships
+# the binary directly under package/.
+if [ -z "$NATIVE_BIN" ]; then
+  if ! command -v npm &>/dev/null; then
+    warn "No native Claude Code binary found locally, and npm is not installed."
+    warn "  Either install the official binary first:"
+    warn "    curl -fsSL https://claude.ai/install.sh | bash"
+    warn "  or install npm so we can fetch it from the registry."
+    exit 1
+  fi
+  if [ -z "$os" ] || [ -z "$arch" ]; then
+    warn "Unsupported platform: $(uname -s) $(uname -m)"
+    exit 1
+  fi
+  NPM_PKG="@anthropic-ai/claude-code-${PLATFORM}"
+  dim "Fetching $NPM_PKG@$VERSION from npm registry ..."
+  NATIVE_BIN_TMPDIR=$(mktemp -d)
+  if ( cd "$NATIVE_BIN_TMPDIR" && npm pack "$NPM_PKG@$VERSION" --silent >/dev/null 2>&1 ); then
+    TARBALL=$(ls "$NATIVE_BIN_TMPDIR"/*.tgz 2>/dev/null | head -1)
+    if [ -n "$TARBALL" ]; then
+      ( cd "$NATIVE_BIN_TMPDIR" && tar xzf "$TARBALL" )
+      cand="$NATIVE_BIN_TMPDIR/package/claude"
+      if [ -f "$cand" ]; then
+        sz=$(stat -f%z "$cand" 2>/dev/null || stat -c%s "$cand" 2>/dev/null || echo 0)
+        if [ "$sz" -gt 10000000 ]; then
+          NATIVE_BIN="$cand"
+          NATIVE_BIN_LABEL=$(node -e "console.log(require('$NATIVE_BIN_TMPDIR/package/package.json').version)" 2>/dev/null || echo "npm-latest")
+        fi
+      fi
+    fi
+  fi
+  if [ -z "$NATIVE_BIN" ]; then
+    rm -rf "$NATIVE_BIN_TMPDIR"
+    warn "Failed to download $NPM_PKG from npm."
+    warn "  Install the official Claude Code binary manually:"
+    warn "    curl -fsSL https://claude.ai/install.sh | bash"
+    exit 1
+  fi
+  info "Downloaded $NPM_PKG@$NATIVE_BIN_LABEL"
+fi
+
+if [ -z "$NATIVE_BIN" ]; then
+  warn "Native Claude Code binary not found"
+  warn "Install the official binary first:"
+  warn "  curl -fsSL https://claude.ai/install.sh | bash"
+  warn "Then re-run this script."
+  exit 1
+fi
+
+# Write extractor (used both for cli.js and .node modules)
+cat > "$CLAWGOD_DIR/extract-natives.mjs" << 'EXTRACTOR_EOF'
+{{CLAWGOD:extract-natives.mjs}}
+EXTRACTOR_EOF
+
+# ─── Extract cli.js + native modules from Bun binary ──────────
+# Keep extraction helpers for explicit recovery and installer reuse.
+
+# Single extractor pass: writes cli.original.js + (v2.1.245+) full chunk graph
+# to $CLAWGOD_DIR/bunfs/ and vendor/<name>/<arch>-<os>/<name>.node, plus a
+# pathmap.json for post-process path rewriting.
+rm -rf "$CLAWGOD_DIR/vendor" "$CLAWGOD_DIR/bunfs" "$CLAWGOD_DIR/pathmap.json" \
+  "$CLAWGOD_DIR/cli.original.js" 2>/dev/null
+
+dim "Extracting cli.js + modules from $(echo "$NATIVE_BIN_LABEL") ..."
+node "$CLAWGOD_DIR/extract-natives.mjs" "$NATIVE_BIN" "$CLAWGOD_DIR" 2>&1 | while IFS= read -r line; do echo "  $line"; done
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  warn "Failed to extract from native binary"
+  exit 1
+fi
+[ -f "$CLAWGOD_DIR/cli.original.js" ] || { warn "cli.js missing after extraction"; exit 1; }
+
+# ─── Post-process cli.js for Bun runtime ──────────────────────
+# 0. Strip leading @bun pragma comments so Bun recognises the CJS wrapper
+# 1. Rewrite /$bunfs/root/X.node paths to point at extracted vendor modules
+# 2. Rewrite build-time /home/runner/.../*.ts URLs (used by ripgrep,
+#    sandbox, computer-use, etc. for asset resolution) to __filename so
+#    relative resolutions land near our cli.original.cjs
+# 3. Wrap the Bun-cjs IIFE with an actual invocation so `require()` runs it
+# 4. Save as .cjs (Bun + CJS module wrapper)
+
+dim "Rewriting bunfs paths and IIFE invocation ..."
+cat > "$CLAWGOD_DIR/post-process.mjs" << 'POSTPROC_EOF'
+{{CLAWGOD:post-process.mjs}}
+POSTPROC_EOF
+node "$CLAWGOD_DIR/post-process.mjs" 2>&1 | while IFS= read -r line; do echo "  $line"; done
+if [ "${PIPESTATUS[0]}" -ne 0 ]; then warn "Post-process failed"; exit 1; fi
+[ -f "$CLAWGOD_DIR/cli.original.cjs" ] || { warn "Post-process failed"; exit 1; }
+
+# Stamp the source version for exact-version source recovery.
+echo "$NATIVE_BIN_LABEL" > "$CLAWGOD_DIR/.source-version"
+
+# Keep the binary we just extracted from. cli.cjs points process.execPath at
+# claude.orig, so everything Claude re-spawns from execPath (daemon, background
+# and forked sessions) runs that file, not the patched bundle. The launcher
+# section below swaps it in once it knows where claude lives.
+if [ -f "$NATIVE_BIN" ]; then
+  mv -f "$NATIVE_BIN" "$CLAWGOD_DIR/claude.staged"
+fi
+
+# If we pulled the binary from npm into a tmpdir, clean it up now —
+# extraction is complete.
+if [ -n "$NATIVE_BIN_TMPDIR" ]; then
+  rm -rf "$NATIVE_BIN_TMPDIR"
+fi
+
+info "cli.original.cjs ready ($NATIVE_BIN_LABEL)"
+
+fi  # end --no-upgrade skip
+
+# A failed earlier upgrade may have left a newer native binary staged.
+# Re-patching the installed source must not install that different version.
+if [ "$NO_UPGRADE" = "1" ]; then rm -f "$CLAWGOD_DIR/claude.staged"; fi
+
+# ─── Write re-patch helper (explicit recovery) ───────────────────────
+
+cat > "$CLAWGOD_DIR/repatch.mjs" << 'REPATCH_EOF'
+{{CLAWGOD:repatch.mjs}}
+REPATCH_EOF
+chmod +x "$CLAWGOD_DIR/repatch.mjs"
+info "Re-patch helper installed (repatch.mjs)"
+
+# ─── Write OpenAI-compatible proxy ────────────────────────────
+
+cat > "$CLAWGOD_DIR/openai-proxy.cjs" << 'PROXY_EOF'
+{{CLAWGOD:openai-proxy.cjs}}
+PROXY_EOF
+info "OpenAI-compatible proxy created (openai-proxy.cjs)"
+
+# ─── Write patch feature gates ────────────────────────────────
+
+cat > "$CLAWGOD_DIR/feature-gates.cjs" << 'GATES_EOF'
+{{CLAWGOD:feature-gates.cjs}}
+GATES_EOF
+info "Patch feature gates created (feature-gates.cjs)"
+
+# ─── Write wrapper (cli.cjs, runs under Bun) ──────────────────
+
+cat > "$CLAWGOD_DIR/cli.cjs" << 'WRAPPER_EOF'
+{{CLAWGOD:cli.cjs}}
+WRAPPER_EOF
+chmod +x "$CLAWGOD_DIR/cli.cjs"
+echo "$CLAWGOD_SELF_VERSION" > "$CLAWGOD_DIR/.clawgod-version"
+info "Wrapper created (cli.cjs)"
+
+cat > "$CLAWGOD_DIR/blue-status.cjs" << 'BLUE_STATUS_EOF'
+{{CLAWGOD:blue-status.cjs}}
+BLUE_STATUS_EOF
+cat > "$CLAWGOD_DIR/security-workspace.cjs" << 'SECURITY_WORKSPACE_EOF'
+{{CLAWGOD:security-workspace.cjs}}
+SECURITY_WORKSPACE_EOF
+
+cat > "$CLAWGOD_DIR/startup-check.cjs" << 'STARTUP_EOF'
+{{CLAWGOD:startup-check.cjs}}
+STARTUP_EOF
+
+# ─── Write classifier runtime helper ────────────────────
+
+cat > "$CLAWGOD_DIR/runtime-helpers.cjs" << 'CFG_EOF'
+{{CLAWGOD:runtime-helpers.cjs}}
+CFG_EOF
+info "Classifier runtime helpers created (runtime-helpers.cjs)"
+
+# ─── Write Bun.ant runtime shim ────────────────────────
+# Claude Code 2.1.271+ renders through Bun.ant.CellSegmenter, an
+# Anthropic-private Bun API that stock Bun does not ship. cli.cjs loads this
+# shim before the bundle; without it the TUI never paints.
+cat > "$CLAWGOD_DIR/bun-ant-shim.cjs" << 'BUNANT_EOF'
+{{CLAWGOD:bun-ant-shim.cjs}}
+BUNANT_EOF
+info "Bun.ant runtime shim created (bun-ant-shim.cjs)"
+
+# ─── Write universal patcher ───────────────────────────
+
+cat > "$CLAWGOD_DIR/ast-patches.mjs" << 'AST_PATCHES_EOF'
+{{CLAWGOD:ast-patches.mjs}}
+AST_PATCHES_EOF
+
+cat > "$CLAWGOD_DIR/patch.mjs" << 'PATCHER_EOF'
+{{CLAWGOD:patch.mjs}}
+
+PATCHER_EOF
+info "Patcher created (patch.mjs)"
+
+# ─── Apply patches ─────────────────────────────────────
+
+if [ "$NO_UPGRADE" != "1" ]; then
+  node "$CLAWGOD_DIR/patch.mjs" --capture-clean-source
+fi
+dim "Applying patches ..."
+patch_args=()
+if [ "$TOLERATE_STALE" = "1" ]; then patch_args+=(--tolerate-stale); fi
+node "$CLAWGOD_DIR/patch.mjs" "${patch_args[@]}" 2>&1 | while IFS= read -r line; do echo "  $line"; done
+patch_status=${PIPESTATUS[0]}
+if [ "$patch_status" -ne 0 ]; then
+  warn "Patching failed (node exit $patch_status). Installation aborted."
+  if [ -z "$PREV_BACKUP_DIR" ]; then
+    warn "No previous working installation found to roll back."
+  fi
+  warn ""
+  warn "The new Claude Code build (${NATIVE_BIN_LABEL:-unknown}) is not yet supported by this ClawGod release."
+  warn "If the log says 'regex stale', retry with --tolerate-stale to keep the affected gates upstream:"
+  warn "  curl -fsSL https://raw.githubusercontent.com/0Chencc/clawgod/main/install.sh | bash -s -- --tolerate-stale"
+  warn "To install or roll back to a known compatible version, run:"
+  warn "  curl -fsSL https://github.com/0Chencc/clawgod/releases/latest/download/install.sh | bash -s -- --version <version>"
+  warn "(Note: 'claude update --version' will fail on unpatched Claude Code with \"unknown option '--version'\")"
+  exit "$patch_status"
+fi
+
+# ─── Report which renderer runtime this Claude Code build needs ────────
+# 2.1.271+ renders through Bun.ant.CellSegmenter, an Anthropic-private Bun
+# API; cli.cjs answers it with bun-ant-shim.cjs. Older builds use plain Bun
+# APIs and ignore the shim. Named explicitly so support threads can tell the
+# two paths apart at a glance.
+if grep -rqs "Bun\.ant\.CellSegmenter" "$CLAWGOD_DIR/bunfs" "$CLAWGOD_DIR/cli.original.cjs" 2>/dev/null; then
+  info "Renderer runtime: Bun.ant.CellSegmenter (Claude >= 2.1.271) — served by bun-ant-shim.cjs"
+else
+  info "Renderer runtime: stock Bun APIs (shim present but unused)"
+fi
+
+# ─── Create default configs ───────────────────────────
+
+if [ ! -f "$CLAWGOD_DIR/features.json" ]; then
+  cat > "$CLAWGOD_DIR/features.json" << 'FEATURES_EOF'
+{{CLAWGOD:features.json}}
+FEATURES_EOF
+  info "Default features.json created"
+fi
+
+# Patch feature toggles (user-editable): {"<feature>": false}, absent = on.
+# Written only when missing — the user's choices survive updates/uninstalls.
+if [ ! -f "$CLAWGOD_DIR/patches.json" ]; then
+  printf '{}\n' > "$CLAWGOD_DIR/patches.json"
+  info "Default patches.json created (all features on)"
+fi
+
+# ─── Lean mode: optimize ~/.claude/settings.json ─────
+cat > "$CLAWGOD_DIR/lean-settings.cjs" << 'LEAN_SETTINGS_EOF'
+{{CLAWGOD:lean-settings.cjs}}
+LEAN_SETTINGS_EOF
+# ─── Vengeance SUPREME memory: persona engraved at every startup ─────
+cat > "$CLAWGOD_DIR/supreme-memory.cjs" << 'SUPREME_MEMORY_EOF'
+{{CLAWGOD:supreme-memory.cjs}}
+SUPREME_MEMORY_EOF
+LEAN_OFF_FLAG="$CLAWGOD_DIR/.lean-disabled"
+LEAN_MAX_FLAG="$CLAWGOD_DIR/.lean-max"
+LEAN_MODE=on
+if [ -f "$LEAN_OFF_FLAG" ]; then LEAN_MODE=off
+elif [ -f "$LEAN_MAX_FLAG" ]; then LEAN_MODE=max; fi
+if [ "$LEAN_OFF" = "1" ]; then LEAN_MODE=off
+elif [ "$LEAN_ON" = "1" ]; then LEAN_MODE=on
+elif [ "$LEAN_MAX" = "1" ]; then LEAN_MODE=max; fi
+node "$CLAWGOD_DIR/lean-settings.cjs" "$HOME/.claude/settings.json" "$LEAN_MODE" "$CLAWGOD_DIR/lean-state.json"
+# Change markers only after settings and their ownership state were saved.
+case "$LEAN_MODE" in
+  off) touch "$LEAN_OFF_FLAG"; rm -f "$LEAN_MAX_FLAG" ;;
+  max) rm -f "$LEAN_OFF_FLAG"; touch "$LEAN_MAX_FLAG" ;;
+  on) rm -f "$LEAN_OFF_FLAG" "$LEAN_MAX_FLAG" ;;
+esac
+info "Lean settings applied: $LEAN_MODE (~/.claude/settings.json)"
+
+# ─── Sanity check: ensure user's Bun can actually load cli.original.cjs ──
+# Anthropic builds the native binary with a bleeding-edge Bun build (e.g.
+# 1.3.14 while stable still ships 1.3.13). Older Bun crashes loading the
+# extracted cli.original.cjs with "Expected CommonJS module to have a
+# function wrapper". Detect this BEFORE we install the launcher — better
+# to fail loudly than to leave the user with a launcher that panics on
+# first invocation.
+
+dim "Verifying Bun can load patched cli.original.cjs (bounded startup check) ..."
+sanity_rc=0
+sanity_out=$(node "$CLAWGOD_DIR/startup-check.cjs" "$BUN_BIN" "$CLAWGOD_DIR/cli.cjs" 2>&1) || sanity_rc=$?
+if echo "$sanity_out" | grep -q "Expected CommonJS module to have a function wrapper"; then
+  echo ""
+  warn "The selected Bun runtime cannot load Anthropic's cli.original.cjs."
+  warn ""
+  warn "  Anthropic builds with Bun's canary channel (currently ~1.3.14), while"
+  warn "  bun.sh's main download is on stable (currently 1.3.13). The canary build"
+  warn "  is NOT visible on bun.sh's download page — it lives on GitHub Releases"
+  warn "  and is reachable only via 'bun upgrade --canary'."
+  warn ""
+  warn "  If your bun is from bun.sh:"
+  warn "    bun upgrade --canary"
+  warn ""
+  warn "  If your bun is from a package manager (brew/apt/scoop) where the binary"
+  warn "  is behind a shim and refuses to self-replace ('bun upgrade' silently"
+  warn "  hangs or no-ops):"
+  warn "    <pkg-manager> uninstall bun"
+  warn "    curl -fsSL https://bun.sh/install | bash"
+  warn "    bun upgrade --canary"
+  warn ""
+  warn "  Then re-run install.sh — this sanity check will pass."
+  exit 1
+fi
+if [ "$sanity_rc" -ne 0 ]; then
+  warn "Patched Claude failed its startup check (exit $sanity_rc):"
+  printf '%s\n' "$sanity_out"
+  exit "$sanity_rc"
+fi
+info "Bun loads cli.original.cjs"
+
+# ─── Replace claude command ───────────────────────────
+
+# Use the launcher path captured before the transaction snapshot.
+CLAUDE_DIR=$(dirname "$CLAUDE_BIN")
+
+# ─── Download clawgod-import binary ─────────────────────
+IMPORT_BIN="$CLAWGOD_DIR/clawgod-import"
+if [ ! -x "$IMPORT_BIN" ]; then
+  IMPORT_ARCH="$(uname -m)"
+  IMPORT_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  case "$IMPORT_ARCH" in
+    x86_64|amd64) IMPORT_ARCH="x64" ;;
+    aarch64|arm64) IMPORT_ARCH="arm64" ;;
+  esac
+  case "$IMPORT_OS" in
+    darwin) IMPORT_SUFFIX="darwin-$IMPORT_ARCH" ;;
+    linux)  IMPORT_SUFFIX="linux-$IMPORT_ARCH" ;;
+    *)      IMPORT_SUFFIX="" ;;
+  esac
+  if [ -n "$IMPORT_SUFFIX" ]; then
+    IMPORT_URL="https://github.com/0Chencc/clawgod/releases/latest/download/clawgod-import-$IMPORT_SUFFIX"
+    if curl -fsSL -o "$IMPORT_BIN" "$IMPORT_URL" 2>/dev/null; then
+      chmod +x "$IMPORT_BIN"
+      info "Provider import tool installed (clawgod-import)"
+    else
+      dim "Provider import tool not yet available (build pending)"
+    fi
+  fi
+fi
+
+LAUNCHER_CONTENT="#!/bin/bash
+# clawgod launcher
+CLAWGOD_CLI=\"$CLAWGOD_DIR/cli.cjs\"
+CLAWGOD_IMPORT=\"$CLAWGOD_DIR/clawgod-import\"
+BUN_BIN=\"$BUN_BIN\"
+# Route 'import' subcommand to clawgod-import binary
+if [ \"\$1\" = \"import\" ]; then
+  shift
+  if [ -x \"\$CLAWGOD_IMPORT\" ]; then
+    exec \"\$CLAWGOD_IMPORT\" \"\$@\"
+  else
+    echo \"clawgod: import tool not installed. Reinstall clawgod to get it.\" >&2
+    exit 127
+  fi
+fi
+if [ ! -f \"\$CLAWGOD_CLI\" ]; then
+  echo \"clawgod: installation at $CLAWGOD_DIR is missing (cli.cjs not found)\" >&2
+  echo \"clawgod: reinstall via  curl -fsSL https://github.com/0Chencc/clawgod/releases/latest/download/install.sh | bash\" >&2
+  echo \"clawgod: or remove this launcher:  rm \\\"\$0\\\"\" >&2
+  exit 127
+fi
+if [ ! -x \"\$BUN_BIN\" ]; then
+  if command -v bun >/dev/null 2>&1; then BUN_BIN=\"\$(command -v bun)\"; fi
+fi
+if [ ! -x \"\$BUN_BIN\" ]; then
+  echo \"clawgod: bun runtime not found at \$BUN_BIN\" >&2
+  echo \"clawgod: install bun  curl -fsSL https://bun.sh/install | bash\" >&2
+  exit 127
+fi
+export CLAUDE_CODE_EXECPATH=\"$CLAUDE_BIN.orig\"
+export HERDR_AGENT=\"\${HERDR_AGENT:-claude}\"
+exec \"\$BUN_BIN\" \"\$CLAWGOD_CLI\" \"\$@\""
+
+
+# Refresh claude.orig from the binary this run extracted. The backup below is
+# only taken once (and on native installs is a symlink into versions/, which
+# no longer moves because the background updater is off), so without this it
+# stays at the first-install version while cli.original.cjs moves on. Sessions
+# spawned from process.execPath then report the old version to the API, which
+# rejects models that need a newer client.
+# rm first: never write through a symlink into the official versions/ dir.
+NATIVE_STAGED="$CLAWGOD_DIR/claude.staged"
+if [ -f "$NATIVE_STAGED" ]; then
+  rm -f "$CLAUDE_BIN.orig"
+  mv -f "$NATIVE_STAGED" "$CLAUDE_BIN.orig"
+  chmod +x "$CLAUDE_BIN.orig"
+  info "Native binary refreshed → claude.orig"
+fi
+
+# Back up original claude (only once)
+if [ ! -e "$CLAUDE_BIN.orig" ]; then
+  if [ -L "$CLAUDE_BIN" ]; then
+    # Symlink (native install) — preserve target
+    NATIVE_BIN="$(readlink "$CLAUDE_BIN")"
+    ln -sf "$NATIVE_BIN" "$CLAUDE_BIN.orig"
+    info "Original claude backed up → claude.orig (→ $NATIVE_BIN)"
+  elif [ -f "$CLAUDE_BIN" ] && file "$CLAUDE_BIN" 2>/dev/null | grep -q "Mach-O\|ELF\|script"; then
+    # Binary or script (pnpm/npm global install)
+    cp "$CLAUDE_BIN" "$CLAUDE_BIN.orig"
+    info "Original claude backed up → claude.orig"
+  else
+    # Try versions dir as fallback
+    VERSIONS_DIR="$HOME/.local/share/claude/versions"
+    if [ -d "$VERSIONS_DIR" ]; then
+      NATIVE_BIN="$(ls -t "$VERSIONS_DIR"/* 2>/dev/null | while read f; do
+        file "$f" 2>/dev/null | grep -q "Mach-O\|ELF" && echo "$f" && break
+      done)" || true
+      if [ -n "$NATIVE_BIN" ]; then
+        ln -sf "$NATIVE_BIN" "$CLAUDE_BIN.orig"
+        info "Original claude backed up → claude.orig (→ $NATIVE_BIN)"
+      fi
+    fi
+  fi
+fi
+
+# Write launcher to the SAME directory where claude was found.
+# CRITICAL: `echo > $f` follows symlinks — if $CLAUDE_BIN is a symlink
+# (e.g. official ~/.local/bin/claude → ~/.local/share/claude/versions/X)
+# we'd write our launcher into the real binary and destroy it. Always
+# remove the existing entry first so we write a fresh regular file.
+write_launcher() {
+  local target="$1"
+  local dir
+  dir=$(dirname "$target")
+  mkdir -p "$dir"
+  rm -f "$target"
+  printf '%s\n' "$LAUNCHER_CONTENT" > "$target"
+  chmod +x "$target"
+}
+
+write_launcher "$CLAUDE_BIN"
+info "Command 'claude' → patched ($CLAUDE_BIN)"
+
+# Also install to ~/.local/bin if claude was elsewhere (ensures PATH consistency)
+if [ "$CLAUDE_DIR" != "$BIN_DIR" ]; then
+  write_launcher "$BIN_DIR/claude"
+  dim "Also installed to $BIN_DIR/claude"
+fi
+
+# Always expose an unambiguous `clawgod` alias alongside the `claude` override.
+# Useful when:
+#  - Windows .exe overshadows our .cmd (clawgod has no .exe competitor)
+#  - User wants explicit "patched" intent
+#  - User restored claude.orig via uninstall but still wants the patched one
+write_launcher "$BIN_DIR/clawgod"
+info "Command 'clawgod' → patched ($BIN_DIR/clawgod)"
+
+# ─── Commit installation after launcher replacement ─────────────────
+PREV_BACKUP_DIR=""
+trap - EXIT
+rm -rf "$TRANSACTION_DIR" || warn "Could not remove transaction directory $TRANSACTION_DIR"
+
+# ─── Check PATH ───────────────────────────────────────
+
+if ! echo "$PATH" | grep -q "$CLAUDE_DIR" && ! echo "$PATH" | grep -q "$BIN_DIR"; then
+  # Detect shell config file
+  case "$(basename "$SHELL")" in
+    zsh)  SHELL_RC="$HOME/.zshrc" ;;
+    bash) SHELL_RC="$HOME/.bashrc" ;;
+    fish) SHELL_RC="$HOME/.config/fish/config.fish" ;;
+    *)    SHELL_RC="$HOME/.profile" ;;
+  esac
+  echo ""
+  warn "$BIN_DIR is not in PATH. Run:"
+  dim "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> $SHELL_RC && source $SHELL_RC"
+fi
+
+# ─── Flush shell cache ────────────────────────────────
+
+hash -r 2>/dev/null
+
+# ─── Done ─────────────────────────────────────────────
+
+echo ""
+echo -e "  ${BOLD}${GREEN}ClawGod Blue installed!${NC}"
+echo ""
+dim "  claude            — Start patched Claude Code (blue logo)"
+dim "  claude.orig       — Run original unpatched Claude Code"
+echo ""
+dim "  Blue updates: run the install.sh from your Blue source package."
+dim "    bash ./install.sh --no-upgrade    (re-patch current version)"
+dim "    bash ./install.sh --uninstall     (restore original launcher)"
+echo ""
+warn "  If 'claude' still runs the old version, restart your terminal or run: hash -r"
+echo ""
+dim "  Config: ~/.clawgod/provider.json"
+dim "  Flags:  ~/.clawgod/features.json"
+dim "  Blue verification: clawgod --blue-status"
+dim "  Security workspace: clawgod --security init audit"
+dim "  Project overview: clawgod --security status"
+echo ""
+dim "  If 'claude' panics with 'Expected CommonJS module to have a function wrapper',"
+dim "  your Bun lags Anthropic's embedded Bun. Upgrade with one of:"
+dim "    bun upgrade --canary           (if installed via curl/install.sh)"
+dim "    scoop update bun               (scoop — may lag stable)"
+dim "    brew upgrade bun               (homebrew)"
+echo ""
