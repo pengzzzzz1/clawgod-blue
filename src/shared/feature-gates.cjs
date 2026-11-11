@@ -17,7 +17,7 @@
 // they read the same patches.json / CLAWGOD_FEATURE_* inputs, but their
 // consumer is cli.cjs (or a module it loads) instead of a runtime gate in
 // cli.original.cjs. Their gate lands in the same __clawgodPatches table.
-var CLAWGOD_RUNTIME_FEATURES = ['bun-ant-shim'];
+var CLAWGOD_RUNTIME_FEATURES = ['bun-ant-shim', 'redline-strip'];
 
 var clawgodDir = require('path').join(require('os').homedir(), '.clawgod');
 

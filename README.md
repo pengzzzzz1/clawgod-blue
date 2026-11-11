@@ -12,13 +12,11 @@
 
 ## 这是什么
 
-ClawGod Blue 是我维护的 **Claude Code 蓝色工作区版**：
+ClawGod Blue 是我维护的 **Claude Code 蓝色工作区版**。可开关能力以 `src/shared/patch.mjs` 的 `FEATURES` 为准（`clawgod --features`）。Blue 发行额外带：
 
-1. **运行时补丁** — 解锁内部命令、Agent Teams、Auto-mode、Computer Use 等被订阅/firstParty 门挡住的能力。
-2. **蓝色身份** — 品牌色 `#3B82F6`。`clawgod --blue-status` 核验主题补丁是否真正命中，不是改个图标交差。
-3. **网安任务总览** — `clawgod --security` 给审计 / 事件 / 复测项目做「目标 → 步骤 → 证据 → 结果」台账。
-4. **隐私中和** — 挡住日期隐写、地区探针、`wiggly-dove` 对 Git origin 和环境的采集。
-5. **Completions 管线** — 可走 OpenAI 兼容接口（DeepSeek 等），不绑死 Anthropic Messages。
+1. **蓝色身份** — `BLUE_THEME_PALETTE.dark` = `rgb(59,130,246)`。`clawgod --blue-status` 核主题源码 SHA256。
+2. **网安任务总览** — `clawgod --security`：目标 → 步骤 → 证据 SHA256 → 结果。
+3. **Completions 管线** — `provider.json` `protocol=openai-chat` 走 OpenAI 兼容接口。
 
 详细命令见 [BLUE-README.md](BLUE-README.md)。手册见 [docs/clawgod-handbook](docs/clawgod-handbook/README.md)。
 
@@ -54,13 +52,14 @@ clawgod --blue-status
 
 ## 能干什么
 
-| 块 | 内容 |
-|---|---|
-| 功能解锁 | 24+ 隐藏命令、GrowthBook 覆盖、Agent Teams、Auto-mode、Ultraplan / Ultrareview |
-| 限制拆除 | 安全测试拒答提示、URL 禁猜、破坏性操作强确认、企业远程设置门 |
-| 蓝色主题 | 暗色主色 `rgb(59,130,246)`，`clawgod --blue-status` 必须 `verified` |
-| 任务总览 | `audit` / `incident` / `retest` 三套模板，证据 SHA256，Markdown 报告 |
-| 隐私 | 地理隐写中和、`x-claude-code-wiggly-dove` 采集阻断 |
+能力清单不手写。安装后：
+
+```powershell
+clawgod --features
+clawgod --features --json
+```
+
+输出就是 `src/shared/patch.mjs` 里的 `FEATURES` 注册表（id、desc、patchIds）。落地页由 `node web/render-landing.mjs` 从同一份 catalog 生成。Blue 发行在补丁之外还有：`--blue-status`、`--security`、`openai-chat` 代理、`--lean-on|off|max`。
 
 ```powershell
 clawgod --security init audit --title "订单 API 审计" --objective "检查对象级访问控制"
@@ -73,6 +72,7 @@ clawgod --security report
 ```powershell
 node build.js
 node build.js --check
+node web/render-landing.mjs --check
 node --test src/shared/blue-theme.test.mjs src/shared/blue-status.test.mjs src/shared/blue-cli.test.mjs src/shared/security-workspace.test.mjs
 ```
 

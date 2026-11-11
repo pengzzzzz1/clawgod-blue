@@ -20,6 +20,37 @@ if (process.argv[2] === '--blue-status') {
   printStatus(status, { json: process.argv.includes('--json'), stdout: process.stdout });
   process.exit(status.ok ? 0 : 1);
 }
+if (process.argv[2] === '--features') {
+  const patcher = join(__dirname, 'patch.mjs');
+  if (!existsSync(patcher)) {
+    process.stderr.write('[ClawGod Blue] patch.mjs is missing; cannot list features from the registry.\n');
+    process.exit(1);
+  }
+  const dumped = spawnSync(process.execPath, [patcher, '--catalog'], { encoding: 'utf8' });
+  if (dumped.status !== 0) {
+    process.stderr.write(dumped.stderr || '[ClawGod Blue] Failed to read the feature catalog.\n');
+    process.exit(1);
+  }
+  let catalog;
+  try { catalog = JSON.parse(dumped.stdout); }
+  catch {
+    process.stderr.write('[ClawGod Blue] Feature catalog is not valid JSON.\n');
+    process.exit(1);
+  }
+  if (!catalog || !Array.isArray(catalog.features)) {
+    process.stderr.write('[ClawGod Blue] Feature catalog is missing the features list.\n');
+    process.exit(1);
+  }
+  if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(catalog, null, 2) + '\n');
+  else {
+    const width = catalog.features.reduce((max, item) => Math.max(max, item.id.length), 0);
+    process.stdout.write('ClawGod Blue / FEATURES  (src/shared/patch.mjs)\n');
+    for (const item of catalog.features) {
+      process.stdout.write(item.id.padEnd(width + 2) + item.desc + '\n');
+    }
+  }
+  process.exit(0);
+}
 if (process.argv[2] === '--security') {
   const workspace = require('./security-workspace.cjs');
   if (process.argv[3] !== 'start') {
@@ -291,6 +322,11 @@ require('./runtime-helpers.cjs');
 // re-implements the API in JS. No-op when the real API exists or when the
 // bun-ant-shim feature is off (patches.json / CLAWGOD_FEATURE_BUN_ANT_SHIM).
 require('./bun-ant-shim.cjs');
+
+if (process.env.CLAWGOD_REDLINE !== '0' && globalThis.__clawgodPatches?.['redline-strip'] !== false) {
+  try { require('./redline-strip.cjs'); }
+  catch (e) { process.stderr.write('[ClawGod Blue] redline-strip load failed: ' + (e && e.message) + '\n'); }
+}
 
 if (interactiveBlueOutput()) {
   const { inspectBlueStatus, renderBanner } = require('./blue-status.cjs');

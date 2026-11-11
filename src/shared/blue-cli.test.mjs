@@ -59,6 +59,29 @@ test('security start adds current project context without discarding user argume
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test('features command prints the patch.mjs FEATURES registry', () => {
+  const catalog = spawnSync(process.execPath, [fileURLToPath(new URL('./patch.mjs', import.meta.url)), '--catalog'], { encoding: 'utf8' });
+  assert.equal(catalog.status, 0, catalog.stderr);
+  const parsed = JSON.parse(catalog.stdout);
+  assert.equal(parsed.edition, 'clawgod-blue');
+  assert.equal(parsed.palette.dark, 'rgb(59,130,246)');
+  assert.ok(parsed.features.length > 0);
+  const listed = spawnSync(process.execPath, [cliPath, '--features'], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: tmpdir(), USERPROFILE: tmpdir() },
+  });
+  assert.equal(listed.status, 0, listed.stderr);
+  for (const item of parsed.features) {
+    assert.match(listed.stdout, new RegExp('^' + item.id + '\\s+' + item.desc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'm'));
+  }
+  const json = spawnSync(process.execPath, [cliPath, '--features', '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: tmpdir(), USERPROFILE: tmpdir() },
+  });
+  assert.equal(json.status, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout).features.map(item => item.id), parsed.features.map(item => item.id));
+});
+
 test('Blue update does not replace the custom edition with an upstream release', () => {
   const root = fs.mkdtempSync(join(tmpdir(), 'blue-update-'));
   try {

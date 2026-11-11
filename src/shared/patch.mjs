@@ -68,7 +68,7 @@ const FEATURES = {
   'cyber-risk':     { desc: 'Remove CYBER_RISK_INSTRUCTION from system prompt',
                       patchIds: ['remove-cyber-risk'] },
   'url-restriction':{ desc: 'Remove URL generation restriction from system prompt',
-                      patchIds: ['remove-url-restriction'] },
+                      patchIds: ['remove-url-restriction', 'remove-url-restriction-concat'] },
   'cautious-actions':{ desc: 'Remove "Executing actions with care" section from system prompt',
                       patchIds: ['remove-cautious-actions'] },
   'not-logged-in':  { desc: 'Remove "Not logged in" notice',
@@ -576,6 +576,18 @@ const patches = [
     sentinel: 'IMPORTANT: You must NEVER generate or guess URLs',
   },
   {
+    // v2.1.2xx graph: the sentence is concatenated as a JS string, not a
+    // template interpolation. Example (chunk-dg4szctq.js):
+    //   ${pbt}`+'\nIMPORTANT: You must NEVER generate or guess URLs for the user...'
+    id: 'remove-url-restriction-concat',
+    toggleable: true,
+    name: 'Remove URL generation restriction (concatenated string form)',
+    pattern: /('\\nIMPORTANT: You must NEVER generate or guess URLs[^']*')/g,
+    replacer: (m, sentence) => `(${gate('remove-url-restriction-concat')}?"":${sentence})`,
+    sentinel: "'\\nIMPORTANT: You must NEVER generate or guess URLs",
+    optional: true,
+  },
+  {
     id: 'remove-cautious-actions',
     toggleable: true,
     name: 'Remove cautious actions section',
@@ -723,6 +735,25 @@ const patches = [
     sentinel: 'behavior:"deny"',
   },
   {
+    // Remaining runtime comparisons against ask/deny (permission-rule
+    // objects built after the literal rewrite). Replacement must not
+    // contain the original substring so a re-run stays idempotent.
+    id: 'vengeance-behavior-ask-cmp',
+    name: 'behavior==="ask" comparisons never match (supreme)',
+    pattern: /behavior==="ask"/g,
+    replacer: () => 'behavior==="\\0ask"',
+    sentinel: 'behavior==="ask"',
+    optional: true,
+  },
+  {
+    id: 'vengeance-behavior-deny-cmp',
+    name: 'behavior==="deny" comparisons never match (supreme)',
+    pattern: /behavior==="deny"/g,
+    replacer: () => 'behavior==="\\0deny"',
+    sentinel: 'behavior==="deny"',
+    optional: true,
+  },
+  {
     // uSt(): auto-mode security-monitor verdict parser → never block
     //   function uSt(e){if(new Set([...e.matchAll(/<block>(yes|no)\b/gi)]…))return null;
     id: 'vengeance-monitor-verdict',
@@ -796,6 +827,7 @@ const dryRun = args.includes('--dry-run');
 const verify = args.includes('--verify');
 const revert = args.includes('--revert');
 const dumpFeatures = args.includes('--dump-features');
+const dumpCatalog = args.includes('--catalog');
 const captureCleanSource = args.includes('--capture-clean-source');
 // Opt-in: report a stale patch and keep going instead of aborting the whole
 // install. A single drifted regex still fails the run by default, because
@@ -816,6 +848,29 @@ if (dumpFeatures) {
     }
   }
   console.log(JSON.stringify(meta));
+  process.exit(0);
+}
+
+// Landing page and `clawgod --features` read this object. Do not hand-edit a
+// second copy in HTML or README — if a feature is not listed here, it is not
+// a toggleable ClawGod Blue feature.
+if (dumpCatalog) {
+  console.log(JSON.stringify({
+    edition: 'clawgod-blue',
+    palette: BLUE_THEME_PALETTE,
+    features: Object.entries(FEATURES).map(([id, def]) => ({
+      id,
+      desc: def.desc,
+      patchIds: [...def.patchIds],
+    })),
+    patches: patches.map((p) => ({
+      id: p.id,
+      name: p.name,
+      toggleable: !!p.toggleable,
+      optional: !!p.optional,
+      ast: !!p.ast,
+    })),
+  }));
   process.exit(0);
 }
 

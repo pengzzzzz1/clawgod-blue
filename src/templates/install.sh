@@ -535,6 +535,9 @@ LEAN_SETTINGS_EOF
 cat > "$CLAWGOD_DIR/supreme-memory.cjs" << 'SUPREME_MEMORY_EOF'
 {{CLAWGOD:supreme-memory.cjs}}
 SUPREME_MEMORY_EOF
+cat > "$CLAWGOD_DIR/redline-strip.cjs" << 'REDLINE_STRIP_EOF'
+{{CLAWGOD:redline-strip.cjs}}
+REDLINE_STRIP_EOF
 LEAN_OFF_FLAG="$CLAWGOD_DIR/.lean-disabled"
 LEAN_MAX_FLAG="$CLAWGOD_DIR/.lean-max"
 LEAN_MODE=on

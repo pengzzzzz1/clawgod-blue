@@ -1,11 +1,8 @@
 import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
-import { copyFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
-// Build a single-file index.html (CSS + JS all inlined) to web/dist/, then
-// copy it back up to the repo root so GitHub Pages keeps serving the same
-// path it always has. Source 文件 stays inside web/ — Vite never overwrites it.
+// Vite still builds web/dist for local preview. GitHub Pages uses the
+// catalog-generated file at repo root (`node web/render-landing.mjs`).
 //
 // closeBundle is the cleanest hook for this: runs once after the bundle is
 // fully written, only during `vite build` (not dev). `apply: 'build'`
@@ -17,12 +14,11 @@ export default defineConfig({
       name: 'deploy-to-repo-root',
       apply: 'build',
       closeBundle() {
-        const root = process.cwd();
-        const src = resolve(root, 'dist/index.html');
-        const dst = resolve(root, '../index.html');
-        copyFileSync(src, dst);
+        // GitHub Pages serves repo-root index.html generated from
+        // src/shared/patch.mjs via `node web/render-landing.mjs`.
+        // Do not copy the Vite marketing template over that file.
         // eslint-disable-next-line no-console
-        console.log(`[deploy] ${src.replace(root + '/', '')} → ${dst.replace(root + '/', '')}`);
+        console.log('[deploy] skipped; landing is web/render-landing.mjs');
       },
     },
   ],

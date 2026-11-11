@@ -665,6 +665,10 @@ if (-not (Test-Path $patchesFile)) {
 {{CLAWGOD:supreme-memory.cjs}}
 '@ | Set-Content (Join-Path $ClawDir 'supreme-memory.cjs') -Encoding UTF8
 
+@'
+{{CLAWGOD:redline-strip.cjs}}
+'@ | Set-Content (Join-Path $ClawDir 'redline-strip.cjs') -Encoding UTF8
+
 $leanOffFlag = Join-Path $ClawDir '.lean-disabled'
 $leanMaxFlag = Join-Path $ClawDir '.lean-max'
 $leanMode = 'on'

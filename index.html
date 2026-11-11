@@ -3,313 +3,433 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ClawGod Blue — 蓝色的 Claude Code</title>
-  <meta name="description" content="Dingfire 的 ClawGod Blue。官方 Claude Code 的蓝色发行：本地补丁、可核验的蓝、网安任务总览。" />
-  <link rel="icon" href="bypass.png" />
+  <title>ClawGod Blue — local runtime patcher for Claude Code</title>
+  <meta name="description" content="ClawGod Blue 从 src/shared/patch.mjs 的 FEATURES 注册表生成能力清单。官方 Claude Code 本地补丁，clawd_body → rgb(59,130,246)。" />
+  <link rel="icon" href="clawd-blue.png" />
   <style>
     :root {
-      --porcelain: #eef3fb;
-      --sheet: #f7f9fd;
-      --ink: #1a2436;
-      --mute: #5c6b84;
-      --line: #d5e0f2;
       --blue: #3b82f6;
+      --blue-bright: #60a5fa;
       --blue-deep: #1d4ed8;
-      --blue-soft: #dbe7ff;
-      --night: #0f1728;
-      --night-2: #162036;
+      --blue-glow: rgba(59,130,246,.18);
+      --bg: #0a0a0a;
+      --surface: #111;
+      --surface-2: #161616;
+      --border: #1f1f1f;
+      --border-hi: #2a2a2a;
+      --text: #e8e8e8;
+      --text-2: #b4b4b4;
+      --dim: #737373;
       --ok: #67e8c8;
-      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif SC", Georgia, serif;
       --sans: "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      --mono: "Cascadia Code", "Sarasa Mono SC", ui-monospace, Consolas, monospace;
+      --mono: "Cascadia Code", "JetBrains Mono", ui-monospace, Consolas, monospace;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; background: var(--porcelain); color: var(--ink); font-family: var(--sans); }
-    body {
-      min-height: 100vh;
-      background:
-        radial-gradient(900px 420px at 50% -8%, rgba(59,130,246,.16), transparent 58%),
-        radial-gradient(700px 380px at 100% 80%, rgba(29,78,216,.07), transparent 50%),
-        var(--porcelain);
-    }
-    body::before {
-      content: "";
-      position: fixed; inset: 0; pointer-events: none; z-index: 8; opacity: .035;
-      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.55'/></svg>");
-    }
-    a { color: var(--blue-deep); text-decoration: none; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body { min-height: 100vh; }
+    a { color: var(--blue-bright); text-decoration: none; }
     a:hover { text-decoration: underline; text-underline-offset: 3px; }
-    .page { width: min(1080px, calc(100% - 48px)); margin: 0 auto; position: relative; z-index: 1; }
-    header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 28px 0 8px;
-    }
-    .mark { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
-    .mark:hover { text-decoration: none; }
-    .mark span { font-weight: 650; letter-spacing: -.02em; font-size: 16px; }
-    .mark em { font-style: normal; color: var(--blue); font-weight: 650; }
-    nav { display: flex; gap: 22px; font-size: 14px; color: var(--mute); }
-    nav a { color: var(--mute); }
-    .spark {
-      width: 28px; height: 28px; display: block;
-      filter: drop-shadow(0 0 10px rgba(59,130,246,.45));
-      animation: shimmer 4.8s ease-in-out infinite;
-    }
-    @keyframes shimmer {
-      0%, 100% { filter: drop-shadow(0 0 8px rgba(59,130,246,.35)); transform: rotate(0deg); }
-      50% { filter: drop-shadow(0 0 16px rgba(96,165,250,.7)); transform: rotate(18deg); }
-    }
-    .hero {
-      display: grid; grid-template-columns: .9fr 1.1fr; gap: 28px;
-      align-items: center; padding: 36px 0 8px;
-    }
-    .hero-copy { text-align: left; }
-    .mascot-wrap { position: relative; }
-    .welcome-shot {
-      width: 100%; height: auto; display: block;
-      border-radius: 10px;
-      box-shadow: 0 24px 60px rgba(29, 78, 216, .18);
-    }
-    .eyebrow {
-      display: inline-flex; align-items: center; gap: 8px;
-      color: var(--blue-deep); font-size: 13px; letter-spacing: .04em;
-      background: var(--blue-soft); border-radius: 999px; padding: 6px 12px 6px 8px;
-      margin-bottom: 22px;
-    }
-    h1 {
-      font-family: var(--serif);
-      font-size: clamp(40px, 6.4vw, 72px);
-      line-height: 1.12; font-weight: 500; letter-spacing: -.03em;
-      margin: 0 auto 18px; max-width: 11em;
-    }
-    h1 i { font-style: italic; color: var(--blue-deep); white-space: nowrap; }
-    .lede {
-      margin: 0 auto; max-width: 42ch; color: var(--mute); font-size: 18px; line-height: 1.65;
-    }
-    .cta { display: flex; justify-content: center; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      min-height: 44px; padding: 0 18px; border-radius: 999px; font-size: 14.5px; font-weight: 600;
-      border: 1px solid transparent; text-decoration: none;
-    }
-    .btn:hover { text-decoration: none; transform: translateY(-1px); }
-    .btn.primary { background: var(--blue); color: #fff; box-shadow: 0 8px 24px rgba(59,130,246,.28); }
-    .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
-    .stage { padding: 8px 0 64px; position: relative; }
-    .tui {
-      width: min(820px, 100%);
-      margin: 0 auto; position: relative; z-index: 2;
-      background: var(--night);
-      color: #e8eefc;
-      border-radius: 18px;
-      overflow: hidden;
-      box-shadow:
-        0 1px 0 rgba(255,255,255,.06) inset,
-        0 30px 80px rgba(15, 23, 40, .28);
-      border: 1px solid #243049;
-    }
-    .tui-bar {
-      display: flex; align-items: center; gap: 8px;
-      padding: 12px 16px; background: var(--night-2);
-      border-bottom: 1px solid #243049; font-size: 13px; color: #9db0d0;
-    }
-    .dots { display: flex; gap: 6px; margin-right: 8px; }
-    .dots i { width: 8px; height: 8px; border-radius: 50%; display: block; background: #31405c; }
-    .dots i:first-child { background: #3b82f6; }
-    .tui-bar .spark { width: 16px; height: 16px; }
-    .tui-body { padding: 22px 22px 26px; font-size: 14.5px; line-height: 1.65; }
-    .bubble { max-width: 92%; }
-    .you {
-      margin-left: auto; background: #1c2a46; border: 1px solid #2b3d5e;
-      border-radius: 16px 16px 6px 16px; padding: 10px 14px; width: fit-content; color: #d5e3ff;
-    }
-    .face { width: 28px; height: 18px; object-fit: contain; image-rendering: pixelated; }
-    .reply { margin-top: 18px; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
-    .reply p { margin: 0 0 8px; color: #dce6f8; }
-    .reply .dim { color: #8aa0c2; font-size: 13px; }
-    .caret {
-      display: inline-block; width: 7px; height: 1.05em; background: var(--blue);
-      transform: translateY(3px); animation: blink 1.1s steps(1) infinite; vertical-align: text-bottom;
-    }
-    @keyframes blink { 50% { opacity: 0; } }
-    .chip {
-      display: inline-flex; gap: 8px; margin-top: 10px; font-family: var(--mono);
-      font-size: 12px; color: var(--ok); background: #122033; border: 1px solid #244056;
-      border-radius: 8px; padding: 8px 10px;
-    }
-    .install {
-      width: min(820px, 100%); margin: 18px auto 0;
-      background: #fff; border: 1px solid var(--line); border-radius: 16px;
-      overflow: hidden;
-    }
-    .install .cap {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 16px; font-size: 12px; color: var(--mute); border-bottom: 1px solid var(--line);
-    }
-    .install pre {
-      margin: 0; padding: 18px 18px 20px; font-family: var(--mono); font-size: 13px;
-      line-height: 1.75; color: var(--ink); overflow: auto; background: var(--sheet);
-    }
-    .install .p { color: var(--blue-deep); }
-    .install .ok { color: #0f766e; }
-    section { padding: 10px 0 28px; }
-    .kicker {
-      font-family: var(--serif); font-style: italic; color: var(--blue-deep);
-      font-size: 20px; margin: 0 0 28px;
-    }
-    .rows { display: grid; gap: 14px; }
-    .row {
-      display: grid; grid-template-columns: 180px 1fr; gap: 24px;
-      background: rgba(255,255,255,.72); border: 1px solid var(--line);
-      border-radius: 18px; padding: 22px 24px; align-items: start;
-    }
-    .row h3 { margin: 0; font-size: 16px; }
-    .row p { margin: 0; color: var(--mute); line-height: 1.6; }
-    .how {
-      display: grid; grid-template-columns: 1.05fr .95fr; gap: 28px;
-      align-items: center; padding: 36px 0 56px;
-    }
-    .how img {
-      width: 100%; border-radius: 18px; border: 1px solid var(--line);
-      box-shadow: 0 18px 50px rgba(26,36,54,.12); display: block;
-    }
-    .how h2 {
-      font-family: var(--serif); font-size: 36px; font-weight: 500;
-      letter-spacing: -.03em; margin: 0 0 12px;
-    }
-    .how p { margin: 0; color: var(--mute); line-height: 1.7; font-size: 16px; }
-    footer {
-      display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-      padding: 22px 0 48px; border-top: 1px solid var(--line);
-      color: var(--mute); font-size: 13px;
-    }
-    footer a { color: var(--mute); }
-    @media (max-width: 800px) {
-      nav { display: none; }
-      .hero, .row, .how { grid-template-columns: 1fr; }
-      .hero-copy { text-align: center; }
-      .cta { justify-content: center; }
-      .lede { margin-left: auto; margin-right: auto; }
-      h1 { max-width: none; }
-      .welcome-shot { width: 100%; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .spark, .caret, .mascot { animation: none; }
+    code { font-family: var(--mono); font-size: .85em; color: var(--blue-bright); }
+    .wrap { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    .topbar { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(12px); background: rgba(10,10,10,.82); border-bottom: 1px solid var(--border); }
+    .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
+    .brand { font-family: var(--mono); font-weight: 700; letter-spacing: -.04em; color: var(--text); text-decoration: none; }
+    .brand em { color: var(--blue); font-style: normal; }
+    .topbar nav { display: flex; gap: 18px; font-size: 13px; color: var(--dim); }
+    .topbar nav a { color: var(--text-2); }
+    .hero { text-align: center; padding: 72px 0 28px; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--text-2); border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 12px; }
+    .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+    h1 { font-size: clamp(42px, 8vw, 72px); letter-spacing: -.06em; margin: 18px 0 8px; font-weight: 750; }
+    h1 span { color: var(--blue); }
+    .tag { color: var(--text-2); font-size: 18px; margin: 0 0 10px; }
+    .sub { color: var(--dim); font-size: 14px; line-height: 1.65; max-width: 46em; margin: 0 auto; }
+    .hero-links { display: flex; justify-content: center; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--border-hi); color: var(--text); background: var(--surface); font-size: 14px; font-weight: 600; }
+    .btn:hover { text-decoration: none; border-color: var(--blue); }
+    .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .install { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin: 8px 0 28px; }
+    .tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .tabs button { flex: 1; background: transparent; color: var(--text-2); border: 0; padding: 12px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+    .tabs button.active { color: var(--blue-bright); background: var(--surface-2); }
+    .panel { display: none; position: relative; }
+    .panel.active { display: block; }
+    .panel pre { margin: 0; padding: 18px 18px 20px; overflow: auto; font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--text); }
+    .prompt { color: var(--blue); }
+    .copy { position: absolute; top: 10px; right: 10px; background: var(--bg); color: var(--text-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 11px; font-family: var(--mono); cursor: pointer; }
+    .note { padding: 0 18px 14px; font-size: 12px; color: var(--dim); font-family: var(--mono); }
+    .shot { margin: 0 auto 8px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #111827; }
+    .shot img { width: 100%; display: block; }
+    .caption { text-align: center; color: var(--dim); font-family: var(--mono); font-size: 12px; margin: 10px 0 36px; }
+    .sq { color: var(--blue); }
+    .section { padding: 48px 0; border-top: 1px solid var(--border); }
+    .head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: baseline; margin-bottom: 22px; }
+    .head h2 { margin: 0; font-size: 22px; }
+    .head h2 .n { font-family: var(--mono); color: var(--blue); font-size: 14px; margin-right: 8px; font-weight: 500; }
+    .head p { margin: 0; color: var(--dim); font-family: var(--mono); font-size: 13px; max-width: 42em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .card .id { font-family: var(--mono); font-size: 13px; color: var(--blue-bright); margin-bottom: 6px; }
+    .card .desc { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+    .card .pids { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+    .card .pids code { font-size: 10px; color: var(--dim); }
+    .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    th { font-family: var(--mono); font-size: 11px; color: var(--dim); font-weight: 600; background: var(--surface); }
+    tr:last-child td { border-bottom: 0; }
+    .how { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .how article { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .how h3 { margin: 0 0 8px; font-size: 15px; }
+    .how p { margin: 0; color: var(--text-2); font-size: 13px; line-height: 1.55; }
+    footer { border-top: 1px solid var(--border); padding: 22px 0 48px; color: var(--dim); font-size: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    footer a { color: var(--text-2); }
+    @media (max-width: 720px) {
+      .topbar nav { display: none; }
+      h1 { font-size: 40px; }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <header>
-      <a class="mark" href="https://github.com/pengzzzzz1/clawgod-blue">
-        <svg class="spark" viewBox="0 0 32 32" aria-hidden="true">
-          <path fill="#3b82f6" d="M16 1.2c.35 0 .62.22.78.7l2.7 8.4c.2.6.7 1.1 1.3 1.3l8.4 2.7c.48.16.7.43.7.78s-.22.62-.7.78l-8.4 2.7c-.6.2-1.1.7-1.3 1.3l-2.7 8.4c-.16.48-.43.7-.78.7s-.62-.22-.78-.7l-2.7-8.4c-.2-.6-.7-1.1-1.3-1.3l-8.4-2.7C1.42 17.62 1.2 17.35 1.2 16s.22-.62.7-.78l8.4-2.7c.6-.2 1.1-.7 1.3-1.3l2.7-8.4c.16-.48.43-.7.78-.7Z"/>
-        </svg>
-        <span>ClawGod <em>Blue</em></span>
-      </a>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="https://github.com/pengzzzzz1/clawgod-blue">claw<span>god</span> <em>blue</em></a>
       <nav>
-        <a href="#what">能力</a>
-        <a href="#install">安装</a>
+        <a href="#features">FEATURES</a>
+        <a href="#core">core patches</a>
+        <a href="#install">install</a>
         <a href="https://github.com/pengzzzzz1/clawgod-blue">GitHub</a>
       </nav>
-    </header>
-
-    <div class="hero">
-      <div class="hero-copy">
-        <div class="eyebrow">
-          <svg class="spark" viewBox="0 0 32 32" width="16" height="16" aria-hidden="true">
-            <path fill="#3b82f6" d="M16 1.2c.35 0 .62.22.78.7l2.7 8.4c.2.6.7 1.1 1.3 1.3l8.4 2.7c.48.16.7.43.7.78s-.22.62-.7.78l-8.4 2.7c-.6.2-1.1.7-1.3 1.3l-2.7 8.4c-.16.48-.43.7-.78.7s-.62-.22-.78-.7l-2.7-8.4c-.2-.6-.7-1.1-1.3-1.3l-8.4-2.7C1.42 17.62 1.2 17.35 1.2 16s.22-.62.7-.78l8.4-2.7c.6-.2 1.1-.7 1.3-1.3l2.7-8.4c.16-.48.43-.7.78-.7Z"/>
-          </svg>
-          蓝色 Claude
-        </div>
-        <h1>同一份 Claude，<i>换成蓝的。</i></h1>
-        <p class="lede">官方 Claude Code 的本地蓝色发行。终端里的 Clawd 从橙改成 <code>#3B82F6</code>，补丁打在本机，任务有台账。</p>
-        <div class="cta">
-          <a class="btn primary" href="https://github.com/pengzzzzz1/clawgod-blue">打开 GitHub</a>
-          <a class="btn ghost" href="#install">看安装命令</a>
-        </div>
-      </div>
-      <div class="mascot-wrap">
-        <img class="welcome-shot" src="welcome-hero.png" alt="蓝色 Claude Code 原版终端欢迎屏，Clawd 体色 #3B82F6" />
-      </div>
     </div>
+  </header>
 
-    <div class="stage">
-      <div class="tui" aria-hidden="true">
-        <div class="tui-bar">
-          <span class="dots"><i></i><i></i><i></i></span>
-          <svg class="spark" viewBox="0 0 32 32"><path fill="#60a5fa" d="M16 1.2c.35 0 .62.22.78.7l2.7 8.4c.2.6.7 1.1 1.3 1.3l8.4 2.7c.48.16.7.43.7.78s-.22.62-.7.78l-8.4 2.7c-.6.2-1.1.7-1.3 1.3l-2.7 8.4c-.16.48-.43.7-.78.7s-.62-.22-.78-.7l-2.7-8.4c-.2-.6-.7-1.1-1.3-1.3l-8.4-2.7C1.42 17.62 1.2 17.35 1.2 16s.22-.62.7-.78l8.4-2.7c.6-.2 1.1-.7 1.3-1.3l2.7-8.4c.16-.48.43-.7.78-.7Z"/></svg>
-          Claude <span style="color:#60a5fa">Blue</span>
-        </div>
-        <div class="tui-body">
-          <div class="you">把这台 Claude Code 调成蓝的，然后继续干活。</div>
-          <div class="reply">
-            <img class="face" src="clawd-blue.png" alt="" />
-            <div>
-              <p>主题已落到 <b style="color:#93c5fd">rgb(59,130,246)</b>。启动器用 <code style="color:#bfdbfe">~\.local\bin\claude.cmd</code>。</p>
-              <p class="dim">不是换皮客户端。补丁打在官方 Claude Code 上。<span class="caret"></span></p>
-              <div class="chip">theme  verified · palette  #3B82F6</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="install" id="install">
-        <div class="cap"><span>Windows · 从源码安装</span><span>clawgod --blue-status</span></div>
-        <pre><span class="p">PS&gt;</span> git clone https://github.com/pengzzzzz1/clawgod-blue.git
-<span class="p">PS&gt;</span> cd clawgod-blue
-<span class="p">PS&gt;</span> powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
-<span class="p">PS&gt;</span> clawgod --blue-status
-<span class="ok">theme     verified
-palette   rgb(59,130,246)
-launcher  ~\.local\bin\claude.cmd</span></pre>
-      </div>
-    </div>
-
-    <section id="what">
-      <p class="kicker">Clawd 还在。只是体色改成蓝。</p>
-      <div class="rows">
-        <div class="row">
-          <h3>本地补丁</h3>
-          <p>从 npm 取官方包，在本机打补丁后接管 <code>claude</code>。蓝色 Logo 已补丁；橙色仍是原版。不要跑 <code>claude.orig.exe</code>。</p>
-        </div>
-        <div class="row">
-          <h3>功能解锁</h3>
-          <p>内部命令、Agent Teams、Auto-mode、Computer Use。安全测试拒答、URL 禁猜、企业远程设置门一并拆掉。</p>
-        </div>
-        <div class="row">
-          <h3>蓝色核验</h3>
-          <p><code>clawgod --blue-status</code> 对照主题源码 SHA256。只有 verified 才算蓝，不是改个图标交差。</p>
-        </div>
-        <div class="row">
-          <h3>任务总览</h3>
-          <p><code>clawgod --security</code> 给审计 / 事件 / 复测做台账：目标、步骤、证据哈希、发现项、Markdown 报告。</p>
-        </div>
-        <div class="row">
-          <h3>隐私中和</h3>
-          <p>日期隐写、地区探针、<code>wiggly-dove</code> 对 Git origin 和环境采集，默认挡住。</p>
-        </div>
+  <main class="wrap">
+    <section class="hero">
+      <div class="pill"><i></i> FEATURES 来自 <code>src/shared/patch.mjs</code> · 16 项可开关 · 60 条补丁</div>
+      <h1>claw<span>god</span> <span>blue</span></h1>
+      <p class="tag">官方 Claude Code 的本地补丁运行时。</p>
+      <p class="sub">不是换皮客户端。安装器拉取官方包，按注册表改 <code>cli.js</code>，再用 <code>~\.local\bin\claude.cmd</code> 启动。下面的能力名、补丁 id、主题色都从源码导出，落地页禁止手写第二份清单。</p>
+      <div class="hero-links">
+        <a class="btn primary" href="#install">Install</a>
+        <a class="btn" href="https://github.com/pengzzzzz1/clawgod-blue">Source</a>
+        <a class="btn" href="https://github.com/0Chencc/clawgod">Upstream 0Chencc/clawgod</a>
       </div>
     </section>
 
-    <div class="how">
-      <img src="welcome-blue.png" alt="蓝色 Claude Code 原版终端欢迎屏" />
-      <div>
-        <h2>还是那个 Clawd，换成蓝的。</h2>
-        <p>欢迎屏上的方块形象就是官方终端 Clawd。ClawGod Blue 只改 <code>clawd_body</code> 为 <code>rgb(59,130,246)</code>，不另造卡通。克隆仓库，跑安装器，用 <code>claude.cmd</code> 打开。</p>
+    <section id="install" class="install">
+      <div class="tabs" role="tablist">
+        <button class="active" data-t="win" type="button">Windows</button>
+        <button data-t="unix" type="button">macOS / Linux</button>
       </div>
-    </div>
+      <div class="panel active" id="panel-win">
+        <button class="copy" data-copy="git clone https://github.com/pengzzzzz1/clawgod-blue.git&#10;cd clawgod-blue&#10;powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1&#10;clawgod --blue-status&#10;clawgod --features">Copy</button>
+        <pre><span class="prompt">PS&gt;</span> git clone https://github.com/pengzzzzz1/clawgod-blue.git
+<span class="prompt">PS&gt;</span> cd clawgod-blue
+<span class="prompt">PS&gt;</span> powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+<span class="prompt">PS&gt;</span> clawgod --blue-status
+<span class="prompt">PS&gt;</span> clawgod --features</pre>
+        <div class="note">启动器用 ~\.local\bin\claude.cmd。不要跑 claude.orig.exe。蓝色 Logo = 已补丁。</div>
+      </div>
+      <div class="panel" id="panel-unix">
+        <button class="copy" data-copy="git clone https://github.com/pengzzzzz1/clawgod-blue.git&#10;cd clawgod-blue&#10;bash ./install.sh&#10;clawgod --blue-status&#10;clawgod --features">Copy</button>
+        <pre><span class="prompt">$</span> git clone https://github.com/pengzzzzz1/clawgod-blue.git
+<span class="prompt">$</span> cd clawgod-blue
+<span class="prompt">$</span> bash ./install.sh
+<span class="prompt">$</span> clawgod --blue-status
+<span class="prompt">$</span> clawgod --features</pre>
+        <div class="note">Linux/macOS 安装器随源码提供。Node ≥ 18，ripgrep；Bun 缺失时安装器会尝试自装。</div>
+      </div>
+    </section>
 
-    <footer>
-      <div>ClawGod Blue · Dingfire / pengzzzzz1</div>
-      <div>
-        <a href="https://github.com/pengzzzzz1/clawgod-blue">源码</a>
-        ·
-        <a href="https://github.com/0Chencc/clawgod">上游</a>
-        ·
-        <a href="BLUE-README.md">蓝版手册</a>
+    <figure class="shot">
+      <img src="welcome-hero.png" alt="官方 Claude Code 欢迎屏。Clawd 的 clawd_body 已由 theme-logo-rgb 写成 rgb(59,130,246)。" />
+    </figure>
+    <p class="caption"><span class="sq">█</span> rgb(59,130,246) = <code>BLUE_THEME_PALETTE.dark</code> / <code>theme-logo-rgb</code> 写入 <code>clawd_body</code></p>
+
+    <section class="section" id="features">
+      <div class="head">
+        <h2><span class="n">01</span>Runtime gates</h2>
+        <p>id 与 desc 原样取自 FEATURES。卡片上的 code 是该 feature 绑定的 patchIds。</p>
       </div>
-    </footer>
-  </div>
+      <div class="grid">
+    <article class="card">
+      <div class="id">agent-teams</div>
+      <div class="desc">Agent Teams always enabled</div>
+      <div class="pids"><code>agent-teams</code> <code>agent-teams-graph</code></div>
+    </article>
+    <article class="card">
+      <div class="id">computer-use</div>
+      <div class="desc">Computer Use unlock</div>
+      <div class="pids"><code>computer-use-sub</code> <code>computer-use-default</code> <code>computer-use-gate</code></div>
+    </article>
+    <article class="card">
+      <div class="id">ultraplan</div>
+      <div class="desc">Ultraplan slash command</div>
+      <div class="pids"><code>ultraplan</code></div>
+    </article>
+    <article class="card">
+      <div class="id">ultrareview</div>
+      <div class="desc">Ultrareview slash command</div>
+      <div class="pids"><code>ultrareview-gate</code> <code>ultrareview-direct</code></div>
+    </article>
+    <article class="card">
+      <div class="id">voice-mode</div>
+      <div class="desc">Voice Mode</div>
+      <div class="pids"><code>voice-mode</code></div>
+    </article>
+    <article class="card">
+      <div class="id">auto-mode</div>
+      <div class="desc">Auto-mode model selection on third-party APIs</div>
+      <div class="pids"><code>auto-mode-helper-gate</code> <code>auto-mode-inline-gate</code></div>
+    </article>
+    <article class="card">
+      <div class="id">classifier-tuning</div>
+      <div class="desc">Auto-mode classifier overrides (timeout/model/retries env vars)</div>
+      <div class="pids"><code>classifier-timeout</code> <code>classifier-model</code> <code>classifier-retries</code></div>
+    </article>
+      </div>
+    </section>
+<section class="section" >
+      <div class="head">
+        <h2><span class="n">02</span>Prompt / policy</h2>
+        <p>id 与 desc 原样取自 FEATURES。卡片上的 code 是该 feature 绑定的 patchIds。</p>
+      </div>
+      <div class="grid">
+    <article class="card">
+      <div class="id">cyber-risk</div>
+      <div class="desc">Remove CYBER_RISK_INSTRUCTION from system prompt</div>
+      <div class="pids"><code>remove-cyber-risk</code></div>
+    </article>
+    <article class="card">
+      <div class="id">url-restriction</div>
+      <div class="desc">Remove URL generation restriction from system prompt</div>
+      <div class="pids"><code>remove-url-restriction</code> <code>remove-url-restriction-concat</code></div>
+    </article>
+    <article class="card">
+      <div class="id">cautious-actions</div>
+      <div class="desc">Remove &quot;Executing actions with care&quot; section from system prompt</div>
+      <div class="pids"><code>remove-cautious-actions</code></div>
+    </article>
+    <article class="card">
+      <div class="id">not-logged-in</div>
+      <div class="desc">Remove &quot;Not logged in&quot; notice</div>
+      <div class="pids"><code>remove-not-logged-in</code></div>
+    </article>
+    <article class="card">
+      <div class="id">message-filter</div>
+      <div class="desc">Bypass non-ant message/attachment filters</div>
+      <div class="pids"><code>attachment-filter-bypass</code> <code>message-filter-legacy</code> <code>message-filter-s8</code></div>
+    </article>
+    <article class="card">
+      <div class="id">remote-settings</div>
+      <div class="desc">Ignore enterprise-managed remote settings</div>
+      <div class="pids"><code>remote-settings-off</code></div>
+    </article>
+      </div>
+    </section>
+<section class="section" >
+      <div class="head">
+        <h2><span class="n">03</span>Telemetry</h2>
+        <p>id 与 desc 原样取自 FEATURES。卡片上的 code 是该 feature 绑定的 patchIds。</p>
+      </div>
+      <div class="grid">
+    <article class="card">
+      <div class="id">geo-neutralize</div>
+      <div class="desc">Neutralize geo/proxy steganography in system prompt</div>
+      <div class="pids"><code>geo-stego-date</code> <code>geo-detect-probe</code> <code>geo-apostrophe-stego</code></div>
+    </article>
+    <article class="card">
+      <div class="id">wiggly-dove</div>
+      <div class="desc">Block automatic Git/environment collection in x-claude-code-wiggly-dove</div>
+      <div class="pids"><code>wiggly-dove</code></div>
+    </article>
+      </div>
+    </section>
+<section class="section" >
+      <div class="head">
+        <h2><span class="n">04</span>Theme</h2>
+        <p>id 与 desc 原样取自 FEATURES。卡片上的 code 是该 feature 绑定的 patchIds。</p>
+      </div>
+      <div class="grid">
+    <article class="card">
+      <div class="id">theme</div>
+      <div class="desc">Blue Security brand/logo color scheme</div>
+      <div class="pids"><code>theme-logo-rgb</code> <code>theme-logo-ansi</code> <code>theme-claude-rgb-dark</code> <code>theme-claude-rgb-light</code> <code>theme-claude-ansi</code> <code>theme-shimmer-rgb</code> <code>theme-shimmer-rgb-light</code> <code>theme-shimmer-ansi</code> <code>theme-hex</code> <code>theme-brief-rgb-dark</code> <code>theme-brief-rgb-light</code> <code>theme-brief-ansi</code></div>
+    </article>
+      </div>
+    </section>
+
+    <section class="section" id="core">
+      <div class="head">
+        <h2><span class="n">05</span>Core patches</h2>
+        <p>无 toggleable 标记 = 安装时必打，不进 patches.json。共 21 条；可开关 39 条。</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>id</th><th>name</th><th>matcher</th></tr></thead>
+          <tbody>
+      <tr>
+        <td><code>terminal-reply-fragments</code></td>
+        <td>Preserve split terminal replies while a DA1 probe is pending</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>user-type-ant</code></td>
+        <td>USER_TYPE → ant</td>
+        <td>AST</td>
+      </tr>
+      <tr>
+        <td><code>bun-standalone-executable</code></td>
+        <td>Bun.isStandaloneExecutable → true</td>
+        <td>AST</td>
+      </tr>
+      <tr>
+        <td><code>growthbook-env-overrides</code></td>
+        <td>GrowthBook env overrides</td>
+        <td>AST</td>
+      </tr>
+      <tr>
+        <td><code>growthbook-env-overrides-graph</code></td>
+        <td>GrowthBook env overrides (graph dead-code fix)</td>
+        <td>AST · optional</td>
+      </tr>
+      <tr>
+        <td><code>growthbook-config-overrides</code></td>
+        <td>GrowthBook config overrides</td>
+        <td>regex</td>
+      </tr>
+      <tr>
+        <td><code>update-redirect</code></td>
+        <td>Redirect `claude update` to clawgod self-update</td>
+        <td>regex</td>
+      </tr>
+      <tr>
+        <td><code>macos-cmdv-image-paste</code></td>
+        <td>macOS Cmd+V image paste fallback to clipboard read</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>restore-search-tools</code></td>
+        <td>Restore Glob/Grep tools (un-inline EMBEDDED_SEARCH_TOOLS)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>shell-integration-orig</code></td>
+        <td>Shell integration → claude.orig (multitool dispatch fix)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-dangerous-removal</code></td>
+        <td>Dangerous-removal verdict → passthrough (supreme)</td>
+        <td>regex</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-sed-gate</code></td>
+        <td>sed dangerous-operation gate → passthrough (supreme)</td>
+        <td>regex</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-permission-ask</code></td>
+        <td>All behavior:&quot;ask&quot; verdicts → passthrough (supreme)</td>
+        <td>regex</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-permission-deny</code></td>
+        <td>All behavior:&quot;deny&quot; verdicts → passthrough (supreme)</td>
+        <td>regex</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-behavior-ask-cmp</code></td>
+        <td>behavior===&quot;ask&quot; comparisons never match (supreme)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-behavior-deny-cmp</code></td>
+        <td>behavior===&quot;deny&quot; comparisons never match (supreme)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-monitor-verdict</code></td>
+        <td>Security-monitor verdict parser → always no-block (supreme)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-monitor-prompt</code></td>
+        <td>Security-monitor prompt → rubber stamp &lt;block&gt;no&lt;/block&gt; (supreme)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-refusal-break</code></td>
+        <td>Refusal stop_reason no longer breaks the tool loop (supreme)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>vengeance-refusal-detect</code></td>
+        <td>Advisor refusal detection → always false (supreme)</td>
+        <td>regex · optional</td>
+      </tr>
+      <tr>
+        <td><code>tool-result-pairing-recovery</code></td>
+        <td>Recover orphaned tool results from history in ensureToolResultPairing</td>
+        <td>AST</td>
+      </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="head">
+        <h2><span class="n">06</span>Blue 发行附加命令</h2>
+        <p>这些入口在 <code>src/shared/cli.cjs</code> / <code>blue-status.cjs</code> / <code>security-workspace.cjs</code>，不是 FEATURES 表里的补丁。</p>
+      </div>
+      <div class="grid">
+        <article class="card"><div class="id">--blue-status</div><div class="desc">对照 blue-patch-state.json 与主题源码 SHA256。仅 verified 退出 0。不代表全部功能已验证。</div><div class="pids"><code>blue-status.cjs</code></div></article>
+        <article class="card"><div class="id">--features</div><div class="desc">打印本页同一份 FEATURES 注册表。加 --json 输出 catalog。</div><div class="pids"><code>cli.cjs</code> <code>patch.mjs --catalog</code></div></article>
+        <article class="card"><div class="id">--security</div><div class="desc">audit / incident / retest 项目台账：步骤、证据 SHA256、发现项、Markdown 报告。记录在 .clawgod-security/。</div><div class="pids"><code>security-workspace.cjs</code></div></article>
+        <article class="card"><div class="id">openai-chat</div><div class="desc">provider.json protocol=openai-chat 时启动 Completions 代理：Anthropic Messages → Chat Completions，前置 workspace contract，JSON/SSE 拒答自动续写。</div><div class="pids"><code>openai-proxy.cjs</code></div></article>
+        <article class="card"><div class="id">redline-strip</div><div class="desc">启动时 hook fetch，剥离 system 里的安全/拒答段落、EndConversation 工具，分类器强制 ALLOW，并注入 workspace contract。CLAWGOD_REDLINE=0 可关。</div><div class="pids"><code>redline-strip.cjs</code></div></article>
+        <article class="card"><div class="id">--lean-on / --lean-off / --lean-max</div><div class="desc">改 ~/.claude/settings.json 的精简档，用户其它设置保留。</div><div class="pids"><code>lean-settings.cjs</code></div></article>
+      </div>
+    </section>
+
+    <section class="section" id="how">
+      <div class="head">
+        <h2><span class="n">∞</span>How it works</h2>
+        <p>两段运行时补丁。不 fork，不编译官方客户端。</p>
+      </div>
+      <div class="how">
+        <article><h3>Extract</h3><p>安装器读取官方包，抽出 <code>cli.js</code> 与嵌入的 <code>.node</code>，按 Bun 落盘执行做后处理。</p></article>
+        <article><h3>Patch</h3><p><code>patch.mjs</code> 先跑 AST 再跑 regex。主题把 <code>clawd_body</code> 从橙改成 <code>rgb(59,130,246)</code>。幂等，可 <code>-NoUpgrade</code> 重打。</p></article>
+        <article><h3>Launch</h3><p><code>~\.local\bin\claude</code> 包一层 Bun，加载 <code>cli.original.cjs</code>。<code>provider.json</code> 决定 Anthropic 直连还是 openai-chat 代理。</p></article>
+        <article><h3>Verify</h3><p><code>clawgod --blue-status</code> 核主题哈希。<code>clawgod --features</code> 核注册表。升级走本仓库安装器，避免 <code>claude update</code> 盖回上游绿版。</p></article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <div>GPL-3.0 · Dingfire / pengzzzzz1 · 上游 <a href="https://github.com/0Chencc/clawgod">0Chencc/clawgod</a></div>
+    <div>
+      <a href="https://github.com/pengzzzzz1/clawgod-blue">源码</a> ·
+      <a href="BLUE-README.md">手册</a> ·
+      <a href="https://github.com/pengzzzzz1/clawgod-blue/blob/main/src/shared/patch.mjs">patch.mjs</a>
+    </div>
+  </footer>
+  <script>
+    document.querySelectorAll('.tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === 'panel-' + btn.dataset.t));
+      });
+    });
+    document.querySelectorAll('.copy').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const text = btn.getAttribute('data-copy');
+        try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+        catch { btn.textContent = 'Copy failed'; }
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+      });
+    });
+  </script>
 </body>
 </html>
