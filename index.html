@@ -59,7 +59,22 @@
       0%, 100% { filter: drop-shadow(0 0 8px rgba(59,130,246,.35)); transform: rotate(0deg); }
       50% { filter: drop-shadow(0 0 16px rgba(96,165,250,.7)); transform: rotate(18deg); }
     }
-    .hero { text-align: center; padding: 56px 0 36px; }
+    .hero {
+      display: grid; grid-template-columns: 1.05fr .95fr; gap: 12px;
+      align-items: center; padding: 36px 0 8px;
+    }
+    .hero-copy { text-align: left; }
+    .mascot-wrap { position: relative; min-height: 380px; }
+    .mascot {
+      width: min(460px, 108%);
+      display: block; margin: 0 auto;
+      filter: drop-shadow(0 28px 50px rgba(37, 99, 235, .18));
+      animation: bob 5.4s ease-in-out infinite;
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
     .eyebrow {
       display: inline-flex; align-items: center; gap: 8px;
       color: var(--blue-deep); font-size: 13px; letter-spacing: .04em;
@@ -85,10 +100,10 @@
     .btn:hover { text-decoration: none; transform: translateY(-1px); }
     .btn.primary { background: var(--blue); color: #fff; box-shadow: 0 8px 24px rgba(59,130,246,.28); }
     .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
-    .stage { padding: 12px 0 64px; }
+    .stage { padding: 8px 0 64px; position: relative; }
     .tui {
       width: min(820px, 100%);
-      margin: 0 auto;
+      margin: 0 auto; position: relative; z-index: 2;
       background: var(--night);
       color: #e8eefc;
       border-radius: 18px;
@@ -113,7 +128,11 @@
       margin-left: auto; background: #1c2a46; border: 1px solid #2b3d5e;
       border-radius: 16px 16px 6px 16px; padding: 10px 14px; width: fit-content; color: #d5e3ff;
     }
-    .reply { margin-top: 18px; display: grid; grid-template-columns: 22px 1fr; gap: 10px; }
+    .face {
+      width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+      background: #1d4ed8; box-shadow: 0 0 0 2px #1c2a46;
+    }
+    .reply { margin-top: 18px; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
     .reply p { margin: 0 0 8px; color: #dce6f8; }
     .reply .dim { color: #8aa0c2; font-size: 13px; }
     .caret {
@@ -175,11 +194,16 @@
     footer a { color: var(--mute); }
     @media (max-width: 800px) {
       nav { display: none; }
-      .row, .how { grid-template-columns: 1fr; }
+      .hero, .row, .how { grid-template-columns: 1fr; }
+      .hero-copy { text-align: center; }
+      .cta { justify-content: center; }
+      .lede { margin-left: auto; margin-right: auto; }
       h1 { max-width: none; }
+      .mascot-wrap { min-height: 0; }
+      .mascot { width: min(280px, 70%); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .spark, .caret { animation: none; }
+      .spark, .caret, .mascot { animation: none; }
     }
   </style>
 </head>
@@ -200,17 +224,22 @@
     </header>
 
     <div class="hero">
-      <div class="eyebrow">
-        <svg class="spark" viewBox="0 0 32 32" width="16" height="16" aria-hidden="true">
-          <path fill="#3b82f6" d="M16 1.2c.35 0 .62.22.78.7l2.7 8.4c.2.6.7 1.1 1.3 1.3l8.4 2.7c.48.16.7.43.7.78s-.22.62-.7.78l-8.4 2.7c-.6.2-1.1.7-1.3 1.3l-2.7 8.4c-.16.48-.43.7-.78.7s-.62-.22-.78-.7l-2.7-8.4c-.2-.6-.7-1.1-1.3-1.3l-8.4-2.7C1.42 17.62 1.2 17.35 1.2 16s.22-.62.7-.78l8.4-2.7c.6-.2 1.1-.7 1.3-1.3l2.7-8.4c.16-.48.43-.7.78-.7Z"/>
-        </svg>
-        蓝色 Claude Code
+      <div class="hero-copy">
+        <div class="eyebrow">
+          <svg class="spark" viewBox="0 0 32 32" width="16" height="16" aria-hidden="true">
+            <path fill="#3b82f6" d="M16 1.2c.35 0 .62.22.78.7l2.7 8.4c.2.6.7 1.1 1.3 1.3l8.4 2.7c.48.16.7.43.7.78s-.22.62-.7.78l-8.4 2.7c-.6.2-1.1.7-1.3 1.3l-2.7 8.4c-.16.48-.43.7-.78.7s-.62-.22-.78-.7l-2.7-8.4c-.2-.6-.7-1.1-1.3-1.3l-8.4-2.7C1.42 17.62 1.2 17.35 1.2 16s.22-.62.7-.78l8.4-2.7c.6-.2 1.1-.7 1.3-1.3l2.7-8.4c.16-.48.43-.7.78-.7Z"/>
+          </svg>
+          蓝色 Claude
+        </div>
+        <h1>同一份 Claude，<i>换成蓝的。</i></h1>
+        <p class="lede">官方 Claude Code 的本地蓝色发行。形象是蓝星，主题是 #3B82F6，补丁打在本机，任务有台账。</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/pengzzzzz1/clawgod-blue">打开 GitHub</a>
+          <a class="btn ghost" href="#install">看安装命令</a>
+        </div>
       </div>
-      <h1>同一份 Claude，<i>换成蓝的。</i></h1>
-      <p class="lede">官方 Claude Code 的本地蓝色发行。补丁打在本机，星标会亮成蓝，主题能核验，任务有台账。</p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/pengzzzzz1/clawgod-blue">打开 GitHub</a>
-        <a class="btn ghost" href="#install">看安装命令</a>
+      <div class="mascot-wrap">
+        <img class="mascot" src="claude-blue.jpg" alt="蓝色 Claude 星形形象" />
       </div>
     </div>
 
@@ -224,7 +253,7 @@
         <div class="tui-body">
           <div class="you">把这台 Claude Code 调成蓝的，然后继续干活。</div>
           <div class="reply">
-            <svg class="spark" viewBox="0 0 32 32" width="18" height="18"><path fill="#3b82f6" d="M16 1.2c.35 0 .62.22.78.7l2.7 8.4c.2.6.7 1.1 1.3 1.3l8.4 2.7c.48.16.7.43.7.78s-.22.62-.7.78l-8.4 2.7c-.6.2-1.1.7-1.3 1.3l-2.7 8.4c-.16.48-.43.7-.78.7s-.62-.22-.78-.7l-2.7-8.4c-.2-.6-.7-1.1-1.3-1.3l-8.4-2.7C1.42 17.62 1.2 17.35 1.2 16s.22-.62.7-.78l8.4-2.7c.6-.2 1.1-.7 1.3-1.3l2.7-8.4c.16-.48.43-.7.78-.7Z"/></svg>
+            <img class="face" src="claude-blue.jpg" alt="" />
             <div>
               <p>主题已落到 <b style="color:#93c5fd">rgb(59,130,246)</b>。启动器用 <code style="color:#bfdbfe">~\.local\bin\claude.cmd</code>。</p>
               <p class="dim">不是换皮客户端。补丁打在官方 Claude Code 上。<span class="caret"></span></p>
@@ -273,9 +302,9 @@ launcher  ~\.local\bin\claude.cmd</span></pre>
     </section>
 
     <div class="how">
-      <img src="bypass.png" alt="ClawGod Blue 补丁后的终端" />
+      <img src="claude-blue-wave.jpg" alt="蓝色 Claude 挥手形象" />
       <div>
-        <h2>装上就能接着聊。</h2>
+        <h2>蓝星来了，接着聊。</h2>
         <p>克隆仓库，跑安装器，用 <code>claude.cmd</code> 打开。项目目录里 <code>clawgod --security init audit</code> 即开台账。GPL-3.0，上游是 0Chencc/clawgod，本版由 Dingfire 维护。</p>
       </div>
     </div>
