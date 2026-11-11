@@ -15,8 +15,9 @@
 ClawGod Blue 是我维护的 **Claude Code 蓝色工作区版**。可开关能力以 `src/shared/patch.mjs` 的 `FEATURES` 为准（`clawgod --features`）。Blue 发行额外带：
 
 1. **蓝色身份** — `BLUE_THEME_PALETTE.dark` = `rgb(59,130,246)`。`clawgod --blue-status` 核主题源码 SHA256。
-2. **网安任务总览** — `clawgod --security`：目标 → 步骤 → 证据 SHA256 → 结果。
-3. **Completions 管线** — `provider.json` `protocol=openai-chat` 走 OpenAI 兼容接口。
+2. **无限制运行时** — 包内 ask/deny → passthrough；`redline-strip.cjs` 在 `activate()` 后才钩 fetch；`openai-chat` 代理前置 workspace contract 并在 JSON/SSE 拒答时续写。
+3. **网安任务总览** — `clawgod --security`：目标 → 步骤 → 证据 SHA256 → 结果。
+4. **Completions 管线** — `provider.json` `protocol=openai-chat` 走 OpenAI 兼容接口。
 
 详细命令见 [BLUE-README.md](BLUE-README.md)。手册见 [docs/clawgod-handbook](docs/clawgod-handbook/README.md)。
 
@@ -59,7 +60,7 @@ clawgod --features
 clawgod --features --json
 ```
 
-输出就是 `src/shared/patch.mjs` 里的 `FEATURES` 注册表（id、desc、patchIds）。落地页由 `node web/render-landing.mjs` 从同一份 catalog 生成。Blue 发行在补丁之外还有：`--blue-status`、`--security`、`openai-chat` 代理、`--lean-on|off|max`。
+输出就是 `src/shared/patch.mjs` 里的 `FEATURES` 注册表（id、desc、patchIds）。落地页由 `node web/render-landing.mjs` 从同一份 catalog 生成。Blue 发行在补丁之外还有：`--blue-status`、`--security`、`openai-chat` 代理（含拒答续写）、`redline-strip`、`--lean-on|off|max`。
 
 ```powershell
 clawgod --security init audit --title "订单 API 审计" --objective "检查对象级访问控制"
@@ -69,12 +70,13 @@ clawgod --security report
 
 ## 构建与自检
 
+工程门禁只有这一条（CI 与 README 引用同一命令，禁止手写通过数）：
+
 ```powershell
-node build.js
-node build.js --check
-node web/render-landing.mjs --check
-node --test src/shared/blue-theme.test.mjs src/shared/blue-status.test.mjs src/shared/blue-cli.test.mjs src/shared/security-workspace.test.mjs
+node scripts/verify.mjs
 ```
+
+等价：`npm test`。它会核 catalog、落地页、`build.js --check`，再跑 Blue / 无限制 / 补丁器回归。不要引用 `REDLINE-AUDIT.md` 里的历史计数。
 
 ## 许可证与致谢
 

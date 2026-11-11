@@ -100,7 +100,10 @@ jobs:
         run: node src/shared/provider.test.mjs
 
       - name: Run Chat Completions protocol regression tests
-        run: node --test src/shared/openai-proxy.test.mjs
+        run: node --test src/shared/openai-proxy.test.mjs src/shared/openai-proxy-refusal.test.mjs
+
+      - name: Run unrestricted runtime tests
+        run: node --test src/shared/redline-strip.test.mjs src/shared/supreme-memory.test.mjs src/shared/unrestricted-patches.test.mjs
 
       - name: Run Bun.ant shim tests
         # Claude Code >= 2.1.271 renders through Bun.ant.CellSegmenter, which

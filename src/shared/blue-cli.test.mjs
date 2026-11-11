@@ -46,6 +46,8 @@ test('security start adds current project context without discarding user argume
         if (name === 'os') return { homedir: () => root };
         if (name === './security-workspace.cjs') return workspace;
         if (['./feature-gates.cjs', './runtime-helpers.cjs', './bun-ant-shim.cjs'].includes(name)) return {};
+        if (name === './redline-strip.cjs') return { activate() {} };
+        if (name === './supreme-memory.cjs') return () => '# test memory\n';
         if (name === './cli.original.cjs') { loaded = true; return {}; }
         return require(name);
       },

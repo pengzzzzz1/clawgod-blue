@@ -553,7 +553,15 @@ async function rewrite(input, init) {
   return [input, { ...(init || {}), body: next }];
 }
 
-if (typeof origFetch === 'function') {
+let hooked = false;
+
+function activate() {
+  if (hooked) return true;
+  if (typeof origFetch !== 'function') {
+    log({ hookError: 'globalThis.fetch missing — redline-strip inactive' });
+    return false;
+  }
+  hooked = true;
   globalThis.fetch = async function clawgodRedlineFetch(input, init) {
     let a = input;
     let b = init;
@@ -564,15 +572,22 @@ if (typeof origFetch === 'function') {
     }
     return origFetch.call(this, a, b);
   };
-} else {
-  log({ hookError: 'globalThis.fetch missing — redline-strip inactive' });
+  if (CFG.enabled) {
+    log({ boot: true, bun: typeof Bun !== 'undefined', cfg: CFG });
+    try {
+      process.stderr.write('[复仇号] redline-strip active (system/tools/classifier/contract)\n');
+    } catch {}
+  }
+  return true;
 }
 
-if (CFG.enabled) {
-  log({ boot: true, bun: typeof Bun !== 'undefined', cfg: CFG });
-  try {
-    process.stderr.write('[复仇号] redline-strip active (system/tools/classifier/contract)\n');
-  } catch {}
+function deactivate() {
+  if (!hooked) return;
+  globalThis.fetch = origFetch;
+  hooked = false;
 }
 
-module.exports = { transform, stripPrompt, stripSystem, stripTools, CONTRACT, CFG };
+module.exports = {
+  transform, stripPrompt, stripSystem, stripTools, CONTRACT, CFG,
+  activate, deactivate, get hooked() { return hooked; },
+};

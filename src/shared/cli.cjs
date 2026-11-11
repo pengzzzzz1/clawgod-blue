@@ -252,7 +252,8 @@ process.env.USE_BUILTIN_RIPGREP ??= '1';
     if (versionOnly) return;
     const memDir = join(homedir(), '.claude');
     const memFile = join(memDir, 'CLAUDE.md');
-    const next = require('./supreme-memory.cjs');
+    const mem = require('./supreme-memory.cjs');
+    const next = typeof mem === 'function' ? mem() : mem;
     let current = null;
     try { current = readFileSync(memFile, 'utf8'); } catch { current = null; }
     if (current !== next) {
@@ -323,8 +324,8 @@ require('./runtime-helpers.cjs');
 // bun-ant-shim feature is off (patches.json / CLAWGOD_FEATURE_BUN_ANT_SHIM).
 require('./bun-ant-shim.cjs');
 
-if (process.env.CLAWGOD_REDLINE !== '0' && globalThis.__clawgodPatches?.['redline-strip'] !== false) {
-  try { require('./redline-strip.cjs'); }
+if (!versionOnly && process.env.CLAWGOD_REDLINE !== '0' && globalThis.__clawgodPatches?.['redline-strip'] !== false) {
+  try { require('./redline-strip.cjs').activate(); }
   catch (e) { process.stderr.write('[ClawGod Blue] redline-strip load failed: ' + (e && e.message) + '\n'); }
 }
 

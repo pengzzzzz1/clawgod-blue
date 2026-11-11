@@ -1,0 +1,25 @@
+name: CI
+
+# Fork-owned gate. Does not install Claude Code and does not claim a daily
+# installer matrix — that lives in compat-daily.yml when it is actually run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Engineering verify
+        run: node scripts/verify.mjs

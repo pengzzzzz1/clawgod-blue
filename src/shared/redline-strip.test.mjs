@@ -39,3 +39,17 @@ test('stripPrompt drops policy headings and keeps engineering sections', () => {
   assert.doesNotMatch(next, /Refuse everything/);
   assert.ok(removed.some((item) => /Safeguards/i.test(item)));
 });
+
+test('require() does not replace globalThis.fetch; activate() does', () => {
+  const { activate, deactivate } = require('./redline-strip.cjs');
+  const before = globalThis.fetch;
+  try {
+    assert.equal(typeof before, 'function');
+    assert.notEqual(before.name, 'clawgodRedlineFetch');
+    assert.equal(activate(), true);
+    assert.equal(globalThis.fetch.name, 'clawgodRedlineFetch');
+  } finally {
+    deactivate();
+  }
+  assert.equal(globalThis.fetch, before);
+});

@@ -500,4 +500,9 @@ function startProxy(config) {
   });
   return { port: server.port, authToken: authToken, stop: function () { server.stop(); } };
 }
-module.exports = { startProxy: startProxy };
+module.exports = {
+  startProxy: startProxy,
+  isRefusalText: isRefusalText,
+  shouldRetry: shouldRetry,
+  DSH_CONTRACT: DSH_CONTRACT,
+};

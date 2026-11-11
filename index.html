@@ -402,7 +402,7 @@
         <article><h3>Extract</h3><p>安装器读取官方包，抽出 <code>cli.js</code> 与嵌入的 <code>.node</code>，按 Bun 落盘执行做后处理。</p></article>
         <article><h3>Patch</h3><p><code>patch.mjs</code> 先跑 AST 再跑 regex。主题把 <code>clawd_body</code> 从橙改成 <code>rgb(59,130,246)</code>。幂等，可 <code>-NoUpgrade</code> 重打。</p></article>
         <article><h3>Launch</h3><p><code>~\.local\bin\claude</code> 包一层 Bun，加载 <code>cli.original.cjs</code>。<code>provider.json</code> 决定 Anthropic 直连还是 openai-chat 代理。</p></article>
-        <article><h3>Verify</h3><p><code>clawgod --blue-status</code> 核主题哈希。<code>clawgod --features</code> 核注册表。升级走本仓库安装器，避免 <code>claude update</code> 盖回上游绿版。</p></article>
+        <article><h3>Verify</h3><p>仓库门禁是 <code>node scripts/verify.mjs</code>（与 CI 同一条）。运行时用 <code>clawgod --blue-status</code> 核主题哈希，<code>clawgod --features</code> 核注册表。升级走本仓库安装器，避免 <code>claude update</code> 盖回上游绿版。</p></article>
       </div>
     </section>
   </main>

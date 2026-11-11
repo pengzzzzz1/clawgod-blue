@@ -36,6 +36,8 @@ function launch(args = [], env = {}) {
         if (name === 'os') return { homedir: () => home };
         if (name === './cli.original.cjs') { loaded = true; return {}; }
         if (['./feature-gates.cjs', './runtime-helpers.cjs', './bun-ant-shim.cjs'].includes(name)) return {};
+        if (name === './redline-strip.cjs') return { activate() {} };
+        if (name === './supreme-memory.cjs') return () => '# test memory\n';
         return require(name);
       },
     });

@@ -70,9 +70,7 @@ node C:\实际路径\clawgod-blue\src\shared\cli.cjs --security init audit --tit
 ## 构建、测试、回退
 
 ```powershell
-node build.js
-node build.js --check
-node --test src/shared/blue-theme.test.mjs src/shared/blue-status.test.mjs src/shared/blue-cli.test.mjs src/shared/security-workspace.test.mjs
+node scripts/verify.mjs
 ```
 
 卸载使用同一源码包的本地安装器：

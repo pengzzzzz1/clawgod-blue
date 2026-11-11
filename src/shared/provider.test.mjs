@@ -51,6 +51,8 @@ function launch(config = {}, env = {}, rawConfig) {
       if (name === './openai-proxy.cjs') return proxyModule.exports;
       if (name === './cli.original.cjs') { loaded = true; return {}; }
       if (['./feature-gates.cjs', './runtime-helpers.cjs', './bun-ant-shim.cjs'].includes(name)) return {};
+      if (name === './redline-strip.cjs') return { activate() {} };
+      if (name === './supreme-memory.cjs') return () => '# test memory\n';
       return require(name);
     },
   });

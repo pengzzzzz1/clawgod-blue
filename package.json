@@ -1,0 +1,17 @@
+{
+  "name": "clawgod-blue",
+  "private": true,
+  "description": "Local runtime patcher for official Claude Code (Blue edition)",
+  "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node scripts/verify.mjs",
+    "catalog": "node src/shared/patch.mjs --catalog",
+    "landing": "node web/render-landing.mjs",
+    "landing:check": "node web/render-landing.mjs --check",
+    "build": "node build.js",
+    "build:check": "node build.js --check"
+  }
+}
