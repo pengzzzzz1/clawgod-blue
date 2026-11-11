@@ -88,8 +88,22 @@
     }
     .welcome-left .hi { font-size: 13px; color: #c5d0e6; margin-bottom: 10px; }
     .welcome-left .meta { font-size: 11px; color: #8b9bb8; margin-top: 12px; }
+    .clawd-tui {
+      margin: 10px auto 2px;
+      width: fit-content;
+      font-family: "Cascadia Mono", "Cascadia Code", "JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace;
+      font-size: 20px;
+      line-height: 1.05;
+      letter-spacing: 0;
+      white-space: pre;
+      color: #3b82f6;
+      text-align: left;
+      animation: bob 5.4s ease-in-out infinite;
+      font-variant-ligatures: none;
+    }
+    .clawd-tui .eye { color: #3b82f6; background: #000; }
     .clawd {
-      width: min(180px, 70%); height: auto; margin: 6px auto;
+      width: 144px; height: auto; margin: 6px auto;
       image-rendering: pixelated;
       animation: bob 5.4s ease-in-out infinite;
     }
@@ -267,7 +281,9 @@
           <div class="welcome-grid">
             <div class="welcome-left">
               <div class="hi">Welcome back</div>
-              <img class="clawd" src="clawd-blue.svg" alt="蓝色 Clawd，Claude Code 原版终端形象" />
+              <pre class="clawd-tui" aria-label="蓝色 Clawd，Claude Code 原版终端形象"> ▐<span class="eye">▛███▛█</span>
+▝▜<span class="eye">█████</span>█▀
+  ▝▝ ▝▝  </pre>
               <div class="meta">Opus 4.6 · Claude Max</div>
             </div>
             <div class="welcome-right">
